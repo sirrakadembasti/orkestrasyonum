@@ -56,6 +56,17 @@ node bin/orkestra.mjs run opencode:minimax --model MiniMax-M3 --effort high -- "
 node bin/orkestra.mjs run codex --dir "D:/kodlar/uygulamam" --write -- "src/slugify.js'deki Türkçe karakter hatasını düzelt, başka dosyaya dokunma"
 ```
 
+## İzleme
+Her `run` bir kimlik alır (`[izleme] kimlik: …` stderr'e yazılır) ve işçinin çıktısı geldikçe `~/.orkestra/runs/<kimlik>.log` dosyasına eklenir (`ORKESTRA_HOME` ile değiştirilebilir).
+
+```bash
+node bin/orkestra.mjs runs            # son çalışmalar: durum, başlayalı, son çıktıdan beri
+node bin/orkestra.mjs watch <kimlik>  # bir çalışmanın ayrıntısı ve günlüğün son satırları
+node bin/orkestra.mjs run codex --dir "D:/kodlar/uygulamam" --stream -- "görev"   # çıktıyı canlı bas
+```
+
+"Son çıktıdan beri" süresi uzadıysa işçi takılmış olabilir. `kayıp (süreç yok)` ise orkestra süreci iş bitmeden öldü demektir.
+
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede aynı anda yazacaksa `--write --worktree` kullan (proje git deposu olmalı):
 

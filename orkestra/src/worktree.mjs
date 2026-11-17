@@ -2,18 +2,13 @@
 // İşçi yalnızca kendi kopyasında yazar; değişiklikleri kendi dalına commit edilir, ana klasöre dokunulmaz.
 // Birleştirme otomatik değildir: hangi dalın alınacağına ana ajan ya da kullanıcı karar verir.
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { makeId } from './ids.mjs';
 
 const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const tryGit = (cwd, args) => { try { return git(cwd, args); } catch { return null; } };
-
-function stamp(now) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
-}
 
 export function createWorktree(dir, workerId, { now = new Date(), root = join(tmpdir(), 'orkestra-worktrees') } = {}) {
   const repo = tryGit(dir, ['rev-parse', '--show-toplevel']);
@@ -21,7 +16,7 @@ export function createWorktree(dir, workerId, { now = new Date(), root = join(tm
   const base = tryGit(repo, ['rev-parse', '--verify', 'HEAD']);
   if (!base) throw new Error(`--worktree için depoda en az bir commit olmalı; ${repo} içinde henüz commit yok`);
 
-  const id = `${workerId.replace(/[^A-Za-z0-9._-]/g, '-')}-${stamp(now)}-${randomBytes(2).toString('hex')}`;
+  const id = makeId(workerId, now);
   const branch = `orkestra/${id}`;
   const path = join(root, `${basename(repo)}-${id}`);
   mkdirSync(root, { recursive: true });

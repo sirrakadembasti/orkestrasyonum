@@ -8,6 +8,12 @@ if (mode === 'echo') {
   console.log(process.cwd());
 } else if (mode === 'pwd') {
   console.log(process.env.PWD ?? '');
+} else if (mode === 'chunks') {
+  // Çıktıyı parça parça üreten, uzun süren bir işçiyi taklit eder.
+  for (const line of ['adım 1: dosyalar okunuyor', 'adım 2: düzeltme yapılıyor', 'adım 3: bitti']) {
+    console.log(line);
+    await new Promise((r) => setTimeout(r, 400));
+  }
 } else if (mode === 'write') {
   // Bir dosya yazan işçiyi taklit eder; biraz bekler ki paralel çalışma gerçekten örtüşsün.
   const { writeFileSync } = await import('node:fs');

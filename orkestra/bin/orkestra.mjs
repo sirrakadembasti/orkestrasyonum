@@ -7,7 +7,8 @@ import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STATUS_TEXT } from '../src/classify.mjs';
 import { DEFAULT_EFFORT, DEFAULT_NEED, EFFORTS, NEEDS } from '../src/effort.mjs';
-import { resolveProjectDir, runWorker } from '../src/runner.mjs';
+import { resolveProjectDir, runWorker, selectModelAndEffort } from '../src/runner.mjs';
+import { createRun, listRuns, readRun } from '../src/runlog.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
 import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
 
@@ -41,17 +42,29 @@ const credText = (c) => {
   return `${c.source} (${c.type})${c.tokenExpired ? ' ⚠ token süresi geçmiş' : ''}`;
 };
 
+function printTable(head, lines) {
+  const widths = head.map((h, i) => Math.max(h.length, ...lines.map((l) => String(l[i]).length)));
+  const fmt = (cols) => cols.map((c, i) => String(c).padEnd(widths[i])).join('  ');
+  console.log(fmt(head));
+  for (const l of lines) console.log(fmt(l));
+}
+
 function printStatus(rows) {
-  const lines = rows.map((r) => [
+  printTable(['İŞÇİ', 'FATURALAMA', 'KİMLİK', 'DURUM', 'MODELLER (hızlı | normal | derin)'], rows.map((r) => [
     r.id, r.billing ?? '', credText(r.credential),
     r.state === 'unknown' ? 'test edilmedi' : (STATUS_TEXT[r.state] ?? r.state),
     [r.models.fast, r.models.normal, r.models.deep].map((m) => m ?? 'varsayılan').join(' | '),
-  ]);
-  const head = ['İŞÇİ', 'FATURALAMA', 'KİMLİK', 'DURUM', 'MODELLER (hızlı | normal | derin)'];
-  const widths = head.map((h, i) => Math.max(h.length, ...lines.map((l) => l[i].length)));
-  const fmt = (cols) => cols.map((c, i) => c.padEnd(widths[i])).join('  ');
-  console.log(fmt(head));
-  for (const l of lines) console.log(fmt(l));
+  ]));
+}
+
+// Çalışma listesinde "ok" bir işçinin aktif olduğunu değil, işin bittiğini anlatır.
+const stateText = (state) => ({ running: 'çalışıyor', lost: 'kayıp (süreç yok)', ok: 'bitti (başarılı)' }[state] ?? STATUS_TEXT[state] ?? state);
+
+function ago(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s} sn`;
+  if (s < 3600) return `${Math.floor(s / 60)} dk ${s % 60} sn`;
+  return `${Math.floor(s / 3600)} sa ${Math.floor((s % 3600) / 60)} dk`;
 }
 
 async function main() {
@@ -89,19 +102,29 @@ async function main() {
     const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
     // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
     const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;
+    const choice = {
+      model: typeof flags.model === 'string' ? flags.model : undefined,
+      effort: typeof flags.effort === 'string' ? flags.effort : undefined,
+      need: typeof flags.need === 'string' ? flags.need : undefined,
+    };
+    // İzleme: çalışma kaydı açılır, kimlik hemen bildirilir; çıktı geldikçe günlüğe yazılır.
+    const chosen = selectModelAndEffort(worker, choice);
+    const log = createRun({ worker: worker.id, ...chosen, dir: projectDir, access: write ? 'yazma' : 'okuma', prompt });
+    console.error(`[izleme] kimlik: ${log.id} · günlük: ${log.log}`);
+    const stream = flags.stream === true && !flags.json;
     let result;
     try {
       result = await runWorker(worker, {
         prompt,
         cwd: wt ? wt.path : projectDir,
         write,
-        model: typeof flags.model === 'string' ? flags.model : undefined,
-        effort: typeof flags.effort === 'string' ? flags.effort : undefined,
-        need: typeof flags.need === 'string' ? flags.need : undefined,
+        ...choice,
         timeoutMs: flags.timeout ? Number(flags.timeout) * 1000 : undefined,
+        onOutput: (chunk) => { log.append(chunk); if (stream) process.stdout.write(chunk); },
       });
     } catch (err) {
       if (wt) finalizeWorktree(wt, { message: `orkestra: ${worker.id} (yarım kaldı)` }); // kopya açıkta kalmasın
+      log.finish({ status: 'error' });
       throw err;
     }
     if (wt) {
@@ -109,10 +132,12 @@ async function main() {
       result.dir = projectDir;
       result.worktree = { ...fin, base: wt.base, uncommittedInMain: wt.dirty };
     }
+    result.runId = log.id;
+    log.finish(result);
     if (flags.json) console.log(JSON.stringify(result, null, 2));
     else {
       console.error(`[${result.worker} · ${result.model ?? 'varsayılan'} · efor=${result.effort} · ${STATUS_TEXT[result.status] ?? result.status} · ${(result.durationMs / 1000).toFixed(1)} sn · ${result.access} · ${result.dir}]`);
-      console.log(result.output);
+      if (!stream) console.log(result.output); // akış açıksa çıktı zaten basıldı
       if (wt) {
         const w = result.worktree;
         console.error(w.commit
@@ -125,10 +150,42 @@ async function main() {
     return;
   }
 
+  if (command === 'runs') {
+    const runs = listRuns({ limit: flags.limit ? Number(flags.limit) : 20 });
+    if (flags.json) { console.log(JSON.stringify(runs, null, 2)); return; }
+    if (!runs.length) { console.log('Kayıtlı çalışma yok.'); return; }
+    const now = Date.now();
+    const rows = runs.map((r) => [
+      r.id, r.worker, stateText(r.state),
+      ago(now - Date.parse(r.startedAt)),
+      r.state === 'running' ? (r.lastOutputAt ? ago(now - Date.parse(r.lastOutputAt)) : 'henüz yok') : '—',
+      r.dir ?? '',
+    ]);
+    printTable(['KİMLİK', 'İŞÇİ', 'DURUM', 'BAŞLAYALI', 'SON ÇIKTIDAN BERİ', 'KLASÖR'], rows);
+    return;
+  }
+
+  if (command === 'watch') {
+    const r = readRun(rest[0] ?? '', { lines: flags.lines ? Number(flags.lines) : 20 });
+    if (flags.json) { console.log(JSON.stringify(r, null, 2)); return; }
+    const now = Date.now();
+    console.log(`${r.id} · ${r.worker} · ${r.model ?? 'varsayılan'} · efor=${r.effort} · ${r.access} · ${stateText(r.state)}`);
+    console.log(`klasör: ${r.dir}`);
+    console.log(r.finishedAt
+      ? `süre: ${ago(Date.parse(r.finishedAt) - Date.parse(r.startedAt))} · bitiş: ${ago(now - Date.parse(r.finishedAt))} önce`
+      : `başlayalı: ${ago(now - Date.parse(r.startedAt))} · son çıktıdan beri: ${r.lastOutputAt ? ago(now - Date.parse(r.lastOutputAt)) : 'henüz çıktı yok'}`);
+    if (r.worktree?.branch) console.log(`worktree dalı: ${r.worktree.branch}`);
+    console.log(`günlük: ${r.log}\n--- son ${r.tail.length} satır ---`);
+    console.log(r.tail.join('\n'));
+    return;
+  }
+
   console.log(`Kullanım:
   orkestra status [--probe] [--only işçi1,işçi2] [--timeout sn] [--json]
   orkestra models <işçi>
-  orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--json] -- <prompt>
+  orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--stream] [--json] -- <prompt>
+  orkestra runs [--limit n] [--json]          # son çalışmalar: durum, süre, son çıktıdan beri
+  orkestra watch <kimlik> [--lines n] [--json] # bir çalışmanın durumu ve günlüğün son satırları
 Varsayılan: ihtiyaç=${DEFAULT_NEED}, efor=${DEFAULT_EFFORT} (normal)`);
 }
 

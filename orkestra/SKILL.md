@@ -25,7 +25,9 @@ SKILL.md başka bir yerden okunduysa yolu ona göre değiştir. Node ≥ 20 gere
 $O status                    # ücretsiz: kurulu mu, kimlik girilmiş mi
 $O status --probe            # her işçiye kısa test gönderir — KREDİ HARCAR
 $O models <işçi>             # katmanlar ve kullanılabilir modeller
-$O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal|derin] [--model m] [--effort low|medium|high|xhigh|max] [--timeout sn] [--json] -- "<prompt>"
+$O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal|derin] [--model m] [--effort low|medium|high|xhigh|max] [--timeout sn] [--stream] [--json] -- "<prompt>"
+$O runs                      # son çalışmalar: durum, başlayalı, son çıktıdan beri
+$O watch <kimlik>            # bir çalışmanın durumu ve günlüğün son satırları
 ```
 
 ## Akış
@@ -36,6 +38,13 @@ $O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal
 5. **Erişim:** İşçiler varsayılan olarak salt okunur modda başlatılır; inceleme, ikinci görüş ve plan için bu yeterli. İşçinin projede dosya yazması gerekiyorsa (`--write`) bunu yalnızca kullanıcı görevde açıkça değişiklik istediyse kullan. `--write` yalnızca `--dir` ile birlikte kabul edilir.
 6. Prompt kendi başına anlaşılır olmalı: işçi bu konuşmayı görmez. Hedefi, ilgili dosyaları ve sınırı yaz ("yalnızca raporla" ya da "yalnızca şu dosyaları değiştir").
 7. Sonuç bir rapordur, kanıt değil. Dosya değişikliklerini (`git diff` ya da dosyayı okuyarak) ve iddiaları kendin doğrula. Sonucu kullanıcıya hangi işçinin, hangi modelle, hangi klasörde ve hangi erişimle (okuma/yazma) çalıştığını belirterek aktar.
+
+## İzleme
+Her `run` başlarken stderr'e `[izleme] kimlik: <kimlik>` yazar; işçinin çıktısı geldikçe günlüğe eklenir.
+- Uzun süren işçileri arka planda başlat, kimliği not et ve beklerken `$O watch <kimlik>` ile ilerlemeye bak. Birden fazla işçi varsa `$O runs` hepsini gösterir.
+- **Son çıktıdan beri** süresi uzadıysa (agy için ~3 dk, diğerleri için ~2 dk) işçi takılmış olabilir: günlüğün son satırlarına bak, gerekirse kullanıcıya bildir.
+- `kayıp (süreç yok)` durumu, orkestra süreci bitmeden öldü demektir; sonucu güvenilir değildir, gerekirse görevi yeniden ver.
+- `--stream` çıktıyı geldikçe ekrana da basar; arka plan görevinin çıktısını canlı okumak için kullan.
 
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede **aynı anda** dosya yazacaksa her birine `--write --worktree` ver. Proje bir git deposu olmalı ve en az bir commit içermeli.

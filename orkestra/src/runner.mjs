@@ -36,6 +36,7 @@ function killTree(child) {
 export async function runWorker(worker, {
   prompt, model, effort, need, cwd, write = false, env = process.env,
   timeoutMs = worker.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+  onOutput = () => {}, // işçi sürerken gelen her çıktı parçası (izleme için)
   spawn = nodeSpawn, resolve = resolveCommand,
 } = {}) {
   const chosen = selectModelAndEffort(worker, { model, effort, need });
@@ -52,8 +53,9 @@ export async function runWorker(worker, {
     const child = spawn(resolved.file, args, { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let output = '';
     let timedOut = false;
-    child.stdout.on('data', (d) => { output += d; });
-    child.stderr.on('data', (d) => { output += d; });
+    const collect = (d) => { output += d; onOutput(stripAnsi(d)); };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMs);
     const finish = (exitCode, extra = '') => {
       clearTimeout(timer);
