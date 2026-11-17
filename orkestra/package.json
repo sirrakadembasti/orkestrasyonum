@@ -1,0 +1,12 @@
+{
+  "name": "orkestra",
+  "version": "0.1.0",
+  "description": "Yerel AI CLI'larını (Claude, Codex, agy, Copilot, OpenCode) işçi olarak yöneten orkestratör",
+  "type": "module",
+  "bin": { "orkestra": "bin/orkestra.mjs" },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "status": "node bin/orkestra.mjs status"
+  },
+  "engines": { "node": ">=20" }
+}
