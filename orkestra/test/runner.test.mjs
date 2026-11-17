@@ -40,7 +40,7 @@ test('proje dizini: yol doğrulanır ve mutlak yola çevrilir', () => {
 
 test('komut satırı: olmayan proje dizini işçi çalıştırılmadan reddedilir', () => {
   const missing = join(tmpdir(), 'orkestra-olmayan-klasor-xyz');
-  const r = spawnSync(process.execPath, [BIN, 'run', 'claude', '--dir', missing, '--', 'merhaba'], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [BIN, 'run', 'claude', '--dir', missing, '--', 'merhaba'], { encoding: 'utf8', env: { ...process.env, PATH: '', Path: '' } });
   assert.equal(r.status, 2);
   assert.match(r.stderr, /Proje dizini bulunamadı/);
 });
@@ -70,7 +70,7 @@ test('erişim: varsayılan salt okunur, write: true yazma modunu açar', async (
 });
 
 test('komut satırı: --write açık bir --dir olmadan reddedilir', () => {
-  const r = spawnSync(process.execPath, [BIN, 'run', 'codex', '--write', '--', 'merhaba'], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [BIN, 'run', 'codex', '--write', '--', 'merhaba'], { encoding: 'utf8', env: { ...process.env, PATH: '', Path: '' } });
   assert.equal(r.status, 2);
   assert.match(r.stderr, /--write için --dir ile proje klasörünü açıkça ver/);
 });

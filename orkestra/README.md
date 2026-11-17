@@ -56,6 +56,21 @@ node bin/orkestra.mjs run opencode:minimax --model MiniMax-M3 --effort high -- "
 node bin/orkestra.mjs run codex --dir "D:/kodlar/uygulamam" --write -- "src/slugify.js'deki Türkçe karakter hatasını düzelt, başka dosyaya dokunma"
 ```
 
+## Paralel yazma (`--worktree`)
+Birden fazla işçi aynı projede aynı anda yazacaksa `--write --worktree` kullan (proje git deposu olmalı):
+
+```bash
+node bin/orkestra.mjs run codex          --dir "D:/kodlar/uygulamam" --write --worktree -- "API katmanını yaz" &
+node bin/orkestra.mjs run opencode-free  --dir "D:/kodlar/uygulamam" --write --worktree -- "testleri yaz" &
+wait
+```
+
+Her işçi kendi dalında (`orkestra/<işçi>-<zaman>`) ve ayrı bir kopyada çalışır; ana klasöre dokunulmaz. Bitince değişiklikler o dala commit edilir, kopya silinir ve çıktı dal adını verir. Birleştirme otomatik değildir:
+
+```bash
+git -C "D:/kodlar/uygulamam" merge --no-ff orkestra/codex-20261118-101500-a1b2
+```
+
 Katmanları değiştirmek için bu klasöre `orkestra.config.json`:
 ```json
 { "models": { "codex": { "deep": "gpt-6-luna" }, "opencode:minimax": { "normal": "MiniMax-M3" } } }

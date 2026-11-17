@@ -8,6 +8,12 @@ if (mode === 'echo') {
   console.log(process.cwd());
 } else if (mode === 'pwd') {
   console.log(process.env.PWD ?? '');
+} else if (mode === 'write') {
+  // Bir dosya yazan işçiyi taklit eder; biraz bekler ki paralel çalışma gerçekten örtüşsün.
+  const { writeFileSync } = await import('node:fs');
+  await new Promise((r) => setTimeout(r, 300));
+  writeFileSync(process.env.FAKE_FILE ?? 'isci.txt', process.env.FAKE_CONTENT ?? 'merhaba\n');
+  console.log('yazdım');
 } else if (mode === 'ok') {
   console.log('PONG');
 } else if (mode === 'expired') {

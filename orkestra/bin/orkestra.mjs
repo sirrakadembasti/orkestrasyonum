@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // orkestra status [--probe] [--only a,b] [--json]
 // orkestra models <işçi>
-// orkestra run <işçi> [--dir proje-yolu [--write]] [--model m] [--effort e] [--need hizli|normal|derin] [--timeout sn] [--json] -- <prompt>
+// orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort e] [--need hizli|normal|derin] [--timeout sn] [--json] -- <prompt>
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import { STATUS_TEXT } from '../src/classify.mjs';
 import { DEFAULT_EFFORT, DEFAULT_NEED, EFFORTS, NEEDS } from '../src/effort.mjs';
 import { resolveProjectDir, runWorker } from '../src/runner.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
+import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
 
 function parseArgs(argv) {
   const flags = {};
@@ -84,20 +85,41 @@ async function main() {
     const write = flags.write === true;
     // Yazma, yanlış klasörde dosya değiştirmemek için yalnızca açıkça verilen proje klasöründe yapılır.
     if (write && typeof flags.dir !== 'string') throw new Error('--write için --dir ile proje klasörünü açıkça ver');
-    const cwd = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
-    const result = await runWorker(worker, {
-      prompt,
-      cwd,
-      write,
-      model: typeof flags.model === 'string' ? flags.model : undefined,
-      effort: typeof flags.effort === 'string' ? flags.effort : undefined,
-      need: typeof flags.need === 'string' ? flags.need : undefined,
-      timeoutMs: flags.timeout ? Number(flags.timeout) * 1000 : undefined,
-    });
+    if (flags.worktree && !write) throw new Error('--worktree yalnızca --write ile kullanılır (salt okunur işçi zaten bir şey değiştirmez)');
+    const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
+    // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
+    const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;
+    let result;
+    try {
+      result = await runWorker(worker, {
+        prompt,
+        cwd: wt ? wt.path : projectDir,
+        write,
+        model: typeof flags.model === 'string' ? flags.model : undefined,
+        effort: typeof flags.effort === 'string' ? flags.effort : undefined,
+        need: typeof flags.need === 'string' ? flags.need : undefined,
+        timeoutMs: flags.timeout ? Number(flags.timeout) * 1000 : undefined,
+      });
+    } catch (err) {
+      if (wt) finalizeWorktree(wt, { message: `orkestra: ${worker.id} (yarım kaldı)` }); // kopya açıkta kalmasın
+      throw err;
+    }
+    if (wt) {
+      const fin = finalizeWorktree(wt, { message: `orkestra: ${worker.id} (${result.model ?? 'varsayılan'})\n\n${prompt}` });
+      result.dir = projectDir;
+      result.worktree = { ...fin, base: wt.base, uncommittedInMain: wt.dirty };
+    }
     if (flags.json) console.log(JSON.stringify(result, null, 2));
     else {
       console.error(`[${result.worker} · ${result.model ?? 'varsayılan'} · efor=${result.effort} · ${STATUS_TEXT[result.status] ?? result.status} · ${(result.durationMs / 1000).toFixed(1)} sn · ${result.access} · ${result.dir}]`);
       console.log(result.output);
+      if (wt) {
+        const w = result.worktree;
+        console.error(w.commit
+          ? `[worktree] dal: ${w.branch} · commit: ${w.commit.slice(0, 7)} · dosyalar: ${w.files.join(', ')}\n[worktree] birleştirmek için: git -C "${projectDir}" merge --no-ff ${w.branch}`
+          : '[worktree] işçi hiçbir dosyayı değiştirmedi; dal silindi');
+        if (w.uncommittedInMain) console.error('[worktree] uyarı: ana klasördeki commit edilmemiş değişiklikler işçinin kopyasına dahil değildi');
+      }
     }
     process.exitCode = result.status === 'ok' ? 0 : 1;
     return;
@@ -106,7 +128,7 @@ async function main() {
   console.log(`Kullanım:
   orkestra status [--probe] [--only işçi1,işçi2] [--timeout sn] [--json]
   orkestra models <işçi>
-  orkestra run <işçi> [--dir proje-yolu [--write]] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--json] -- <prompt>
+  orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--json] -- <prompt>
 Varsayılan: ihtiyaç=${DEFAULT_NEED}, efor=${DEFAULT_EFFORT} (normal)`);
 }
 

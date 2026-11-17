@@ -25,7 +25,7 @@ SKILL.md başka bir yerden okunduysa yolu ona göre değiştir. Node ≥ 20 gere
 $O status                    # ücretsiz: kurulu mu, kimlik girilmiş mi
 $O status --probe            # her işçiye kısa test gönderir — KREDİ HARCAR
 $O models <işçi>             # katmanlar ve kullanılabilir modeller
-$O run <işçi> --dir "<proje yolu>" [--write] [--need hizli|normal|derin] [--model m] [--effort low|medium|high|xhigh|max] [--timeout sn] [--json] -- "<prompt>"
+$O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal|derin] [--model m] [--effort low|medium|high|xhigh|max] [--timeout sn] [--json] -- "<prompt>"
 ```
 
 ## Akış
@@ -36,6 +36,16 @@ $O run <işçi> --dir "<proje yolu>" [--write] [--need hizli|normal|derin] [--mo
 5. **Erişim:** İşçiler varsayılan olarak salt okunur modda başlatılır; inceleme, ikinci görüş ve plan için bu yeterli. İşçinin projede dosya yazması gerekiyorsa (`--write`) bunu yalnızca kullanıcı görevde açıkça değişiklik istediyse kullan. `--write` yalnızca `--dir` ile birlikte kabul edilir.
 6. Prompt kendi başına anlaşılır olmalı: işçi bu konuşmayı görmez. Hedefi, ilgili dosyaları ve sınırı yaz ("yalnızca raporla" ya da "yalnızca şu dosyaları değiştir").
 7. Sonuç bir rapordur, kanıt değil. Dosya değişikliklerini (`git diff` ya da dosyayı okuyarak) ve iddiaları kendin doğrula. Sonucu kullanıcıya hangi işçinin, hangi modelle, hangi klasörde ve hangi erişimle (okuma/yazma) çalıştığını belirterek aktar.
+
+## Paralel yazma (`--worktree`)
+Birden fazla işçi aynı projede **aynı anda** dosya yazacaksa her birine `--write --worktree` ver. Proje bir git deposu olmalı ve en az bir commit içermeli.
+1. Her işçi projenin son commit'inden açılan kendi dalında (`orkestra/<işçi>-<zaman>`) ve ayrı bir kopyada çalışır. Ana klasöre dokunulmaz.
+2. Bitince işçinin değişiklikleri o dala commit edilir ve kopya silinir. Çıktıda dal adı, commit ve değişen dosyalar yazar. Değişiklik yoksa dal da silinir.
+3. Dalları **otomatik birleştirme**. Her dalın farkını incele (`git diff <taban>..<dal>`), kullanıcıya hangisini almak istediğini sor ya da görev gereği açıksa sırayla birleştir: `git -C "<proje>" merge --no-ff <dal>`. Çakışma çıkarsa çözümü kullanıcıya göster.
+4. Ana klasörde commit edilmemiş değişiklik varsa çıktı uyarır: işçinin kopyası bunları içermez. Gerekirse önce kullanıcıdan commit etmesini iste.
+5. Aynı CLI'dan iki işçi aynı anda çalıştırma kuralı burada da geçerli (ör. iki `opencode` işçisi). Farklı CLI'lar paralel çalışabilir.
+
+Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje klasöründe çalışır.
 
 ## İşçi seçimi
 | İhtiyaç | İşçi |
