@@ -7,10 +7,11 @@ import { buildWorkers } from './workers.mjs';
 
 export const PROBE_PROMPT = 'Sadece PONG yaz';
 
-export function loadContext({ env = process.env, overrides = {} } = {}) {
+// disabled: kullanıcının pasif yaptığı işçiler (orkestra.config.json → "disabled"); test edilmez, çalıştırılmaz.
+export function loadContext({ env = process.env, overrides = {}, disabled = [] } = {}) {
   const catalog = loadCatalog(catalogPath(env));
   const auth = readAuth(env);
-  return { env, catalog, auth, workers: buildWorkers({ catalog, auth, env, overrides }) };
+  return { env, catalog, auth, workers: buildWorkers({ catalog, auth, env, overrides }), disabled: new Set(disabled) };
 }
 
 // Sınırlı eşzamanlılıkla sırayla çalıştırır.
@@ -26,7 +27,7 @@ export async function collectStatus({
   probe = false, only, concurrency = 4, timeoutMs, context = loadContext(),
   run = runWorker, resolve = resolveCommand,
 } = {}) {
-  const { env, catalog, auth, workers } = context;
+  const { env, catalog, auth, workers, disabled = new Set() } = context;
   const rows = Object.values(workers)
     .filter((w) => !only || only.includes(w.id))
     .map((w) => {
@@ -35,6 +36,7 @@ export async function collectStatus({
       let state = installed ? 'unknown' : 'not_installed';
       // OpenCode ücretsiz modelleri kimlik gerektirmez; diğer opencode işçileri kimlik ister.
       if (installed && credential && !credential.configured && w.id !== 'opencode-free') state = 'not_connected';
+      if (disabled.has(w.id)) state = 'disabled'; // pasif: "unknown" olmadığı için testte de atlanır
       return { id: w.id, label: w.label, kind: w.kind, billing: w.billing, installed, credential, models: w.models, state };
     });
 

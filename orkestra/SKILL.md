@@ -64,10 +64,10 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 | Gemini ve Google modelleri | `agy` (açılışı 50–170 sn; `--timeout 300`) |
 | GitHub bağlamı | `copilot` (her çağrı AI kredisi harcar) |
 | Kimi (kendi CLI'ı) | `kimi` (efor bayrağı yok; faturalama CLI ayarına bağlı, API ise kredi harcar) |
-| Ücretsiz, basit işler | `opencode-free` |
+| Ücretsiz, basit işler | `opencode-free` (OpenCode Zen'in sınırlı ücretsiz modelleri) |
 | MiniMax | `opencode:minimax` |
 | Kimi, MiMo, Qwen, GLM, DeepSeek | `opencode-go` (abonelik) ya da `opencode:<sağlayıcı>` |
-| Ücretli OpenCode modelleri | `opencode-zen` |
+| Ücretli OpenCode modelleri | `opencode-zen` (Zen'in ücretli modelleri; kredi gerekir) |
 
 `opencode:<sağlayıcı>` işçileri `opencode auth login` (ya da `/connect`) ile bağlanmış global sağlayıcılardır; Çinli sağlayıcıların `-cn` sürümleri bilerek listelenmez.
 
@@ -79,6 +79,7 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 | `bakiye/kredi yok`, `abonelik/lisans yok` | Kullanıcıya bildir, başka bir işçi seç |
 | `zaman aşımı` | `--timeout` değerini artır ya da başka bir işçi seç |
 | `kurulu değil` | O işçiyi atla |
+| `pasif` | Kullanıcı bu işçiyi kapattı; kullanma, önerme. Kullanıcı açıkça isterse ayardan açmasını söyle |
 | `Proje dizini bulunamadı` | Yolu kullanıcıya doğrulat |
 
 ## Kurallar
@@ -89,7 +90,9 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 - `--write` ile çalışan bir işçi sonrası yapılan değişiklikleri kullanıcıya göster; geri alınması gerekirse kullanıcıya sor.
 
 ## Ayar
-Model katmanlarını değiştirmek için araç klasörüne (`bin/` dizininin bir üstü) `orkestra.config.json` koy:
+Makineye özel ayar, araç klasöründeki (`bin/` dizininin bir üstü) `orkestra.config.json` dosyasıdır (git'e girmez):
 ```json
-{ "models": { "codex": { "deep": "gpt-6-luna" } } }
+{ "models": { "codex": { "deep": "gpt-6-luna" } }, "disabled": ["kimi"] }
 ```
+- `models`: işçinin hızlı/normal/derin model katmanları.
+- `disabled`: pasif işçiler; durumda "pasif" görünür, test edilmez, `run` reddeder.

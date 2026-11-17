@@ -28,12 +28,14 @@ function parseArgs(argv) {
   return { flags, rest };
 }
 
-// İsteğe bağlı model ayarı: { "models": { "<işçi>": { "fast": "...", "normal": "...", "deep": "..." } } }
-// Varsayılan konum skill klasörü; hangi proje klasöründen çağrılırsa çağrılsın aynı ayar kullanılır.
+// İsteğe bağlı makineye özel ayar (git'e girmez):
+// { "models": { "<işçi>": { "fast": "...", "normal": "...", "deep": "..." } }, "disabled": ["<işçi>", …] }
+// Varsayılan konum araç klasörü; hangi proje klasöründen çağrılırsa çağrılsın aynı ayar kullanılır.
 const SKILL_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
-function loadOverrides() {
+function loadConfig() {
   const path = resolvePath(process.env.ORKESTRA_CONFIG ?? join(SKILL_DIR, 'orkestra.config.json'));
-  return existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')).models ?? {} : {};
+  const config = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+  return { overrides: config.models ?? {}, disabled: config.disabled ?? [] };
 }
 
 const credText = (c) => {
@@ -70,7 +72,10 @@ function ago(ms) {
 async function main() {
   const [command, ...argv] = process.argv.slice(2);
   const { flags, rest } = parseArgs(argv);
-  const context = loadContext({ overrides: loadOverrides() });
+  const context = loadContext(loadConfig());
+  for (const id of context.disabled) {
+    if (!context.workers[id]) console.error(`[ayar] uyarı: "disabled" listesinde bilinmeyen işçi: ${id}`);
+  }
 
   if (command === 'status') {
     const rows = await collectStatus({
@@ -93,6 +98,7 @@ async function main() {
     const [workerId, ...promptParts] = rest;
     const worker = context.workers[workerId];
     if (!worker) throw new Error(`Bilinmeyen işçi: ${workerId}. Liste için: orkestra status`);
+    if (context.disabled.has(workerId)) throw new Error(`${workerId} pasif (orkestra.config.json → "disabled"); açmak için listeden çıkar`);
     const prompt = promptParts.join(' ');
     if (!prompt) throw new Error('Prompt boş. Kullanım: orkestra run <işçi> [seçenekler] -- <prompt>');
     const write = flags.write === true;

@@ -17,8 +17,8 @@ Orkestra klasörü projenin dışında olduğu için ajan ilk seferde bu klasör
 | `claude`, `codex`, `agy`, `copilot` | Kendi CLI'ları | CLI'ın kendi aboneliği |
 | `kimi` | Kimi Code CLI | CLI ayarına bağlı (Moonshot API ya da abonelik) |
 | `opencode-go` | OpenCode Go modelleri | abonelik |
-| `opencode-zen` | OpenCode ücretli modeller | token (kredi) |
-| `opencode-free` | OpenCode ücretsiz modeller | ücretsiz |
+| `opencode-zen` | OpenCode Zen'in ücretli modelleri | token (kredi) |
+| `opencode-free` | OpenCode Zen'in sınırlı ücretsiz modelleri | ücretsiz |
 | `opencode:<sağlayıcı>` | `/connect` ile bağlanan sağlayıcılar (MiniMax, Kimi, MiMo…) | abonelik veya token |
 
 Çinli sağlayıcıların yalnızca global sürümleri listelenir (`-cn` ve `.cn` uç noktaları elenir).
@@ -82,10 +82,15 @@ Her işçi kendi dalında (`orkestra/<işçi>-<zaman>`) ve ayrı bir kopyada ça
 git -C "D:/kodlar/uygulamam" merge --no-ff orkestra/codex-20261118-101500-a1b2
 ```
 
-Katmanları değiştirmek için bu klasöre `orkestra.config.json`:
+Makineye özel ayar bu klasördeki `orkestra.config.json` dosyasıdır (git'e girmez):
 ```json
-{ "models": { "codex": { "deep": "gpt-6-luna" }, "opencode:minimax": { "normal": "MiniMax-M3" } } }
+{
+  "models": { "codex": { "deep": "gpt-6-luna" }, "opencode:minimax": { "normal": "MiniMax-M3" } },
+  "disabled": ["kimi"]
+}
 ```
+- `models`: işçinin hızlı/normal/derin model katmanları.
+- `disabled`: **pasif** işçiler. Durumda "pasif" görünür, `--probe` ile test edilmez, `run` reddeder. Açmak için listeden çıkar.
 
 ## Kimlik durumları
 `aktif`, `bağlı değil`, `anahtar süresi dolmuş`, `geçersiz anahtar`, `bakiye/kredi yok`, `abonelik/lisans yok`, `giriş gerekli`, `model desteklenmiyor`, `zaman aşımı`, `kurulu değil`.

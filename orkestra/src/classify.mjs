@@ -19,6 +19,7 @@ export const STATUS_TEXT = {
   timeout: 'zaman aşımı',
   not_installed: 'kurulu değil',
   not_connected: 'bağlı değil',
+  disabled: 'pasif',
   error: 'hata',
 };
 
