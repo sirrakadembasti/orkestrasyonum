@@ -131,28 +131,28 @@ test('komutlar: her CLI model ve eforu kendi bayrağıyla alır', () => {
   assert.deepEqual(w.claude.args({ prompt: p, model: 'opus', effort: 'high' }), ['-p', p, '--model', 'opus', '--effort', 'high']);
   assert.deepEqual(w.codex.args({ prompt: p, model: 'gpt-6-luna', effort: 'medium' }),
     ['exec', '--skip-git-repo-check', '-m', 'gpt-6-luna', '-c', 'model_reasoning_effort="medium"', p]);
-  assert.deepEqual(w.agy.args({ prompt: p, model: null, effort: 'low' }), ['-p', p, '--effort', 'low']);
+  assert.deepEqual(w.agy.args({ prompt: p, model: null, effort: 'low' }), ['-p', p, '--output-format', 'json', '--effort', 'low']);
   // Kimi Code CLI'ın efor bayrağı yok; model verilmezse config.toml varsayılanı kullanılır.
   assert.deepEqual(w.kimi.args({ prompt: p, model: null, effort: 'high' }), ['-p', p]);
   assert.deepEqual(w.kimi.args({ prompt: p, model: 'kimi-k2.6', effort: 'medium' }), ['-p', p, '-m', 'kimi-k2.6']);
   assert.deepEqual(w.copilot.args({ prompt: p, model: null, effort: 'medium' }), ['-p', p, '-s']);
   assert.deepEqual(w.copilot.args({ prompt: p, model: null, effort: 'low' }), ['-p', p, '-s'], 'auto model efor kabul etmez');
   assert.deepEqual(w.copilot.args({ prompt: p, model: 'gpt-5-mini', effort: 'high' }), ['-p', p, '-s', '--model', 'gpt-5-mini', '--reasoning-effort', 'high']);
-  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'medium' }), ['run', '-m', 'opencode-go/kimi-k3', p]);
-  assert.deepEqual(w['opencode:minimax'].args({ prompt: p, model: 'MiniMax-M3', effort: 'max' }), ['run', '-m', 'minimax/MiniMax-M3', '--variant', 'max', p]);
+  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'medium' }), ['run', '-m', 'opencode-go/kimi-k3', '--format', 'json', p]);
+  assert.deepEqual(w['opencode:minimax'].args({ prompt: p, model: 'MiniMax-M3', effort: 'max' }), ['run', '-m', 'minimax/MiniMax-M3', '--variant', 'max', '--format', 'json', p]);
   assert.throws(() => w['opencode-go'].args({ prompt: p, model: null, effort: 'medium' }), /model seçilemedi/);
   // --variant yalnızca modelin katalogda desteklediği eforlar için gönderilir.
-  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'low' }), ['run', '-m', 'opencode-go/kimi-k3', p], 'kimi-k3 yalnızca max destekler');
-  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'max' }), ['run', '-m', 'opencode-go/kimi-k3', '--variant', 'max', p]);
-  assert.deepEqual(w['opencode-free'].args({ prompt: p, model: 'big-pickle', effort: 'high' }), ['run', '-m', 'opencode/big-pickle', p], 'efor seçeneği yok');
-  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'katalogda-yok', effort: 'high' }), ['run', '-m', 'opencode-go/katalogda-yok', '--variant', 'high', p], 'bilinmeyen model: kullanıcının isteği iletilir');
+  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'low' }), ['run', '-m', 'opencode-go/kimi-k3', '--format', 'json', p], 'kimi-k3 yalnızca max destekler');
+  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'kimi-k3', effort: 'max' }), ['run', '-m', 'opencode-go/kimi-k3', '--variant', 'max', '--format', 'json', p]);
+  assert.deepEqual(w['opencode-free'].args({ prompt: p, model: 'big-pickle', effort: 'high' }), ['run', '-m', 'opencode/big-pickle', '--format', 'json', p], 'efor seçeneği yok');
+  assert.deepEqual(w['opencode-go'].args({ prompt: p, model: 'katalogda-yok', effort: 'high' }), ['run', '-m', 'opencode-go/katalogda-yok', '--variant', 'high', '--format', 'json', p], 'bilinmeyen model: kullanıcının isteği iletilir');
 });
 
 test('erişim: her işçinin açık okuma ve en dar yazma modu var', () => {
   const w = buildWorkers({ catalog: CATALOG, auth: { minimax: { type: 'api', key: MOCK_KEY } } });
   const expected = {
     claude: { read: ['--permission-mode', 'plan'], write: ['--permission-mode', 'acceptEdits'] },
-    codex: { read: ['-s', 'read-only'], write: ['-s', 'workspace-write'] },
+    codex: { read: ['-c', 'sandbox_mode="read-only"'], write: ['-c', 'sandbox_mode="workspace-write"'] },
     copilot: { read: ['--deny-tool=write'], write: ['--allow-tool=write'] },
     // agy etkileşimsiz modda dar bir yazma izni sunmuyor (canlı testte accept-edits komut izni bekleyip boş döndü).
     agy: { read: ['--mode', 'plan'], write: null },

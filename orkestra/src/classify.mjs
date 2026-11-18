@@ -20,6 +20,7 @@ export const STATUS_TEXT = {
   not_installed: 'kurulu değil',
   not_connected: 'bağlı değil',
   disabled: 'pasif',
+  permission_denied: 'izin reddedildi',
   error: 'hata',
 };
 

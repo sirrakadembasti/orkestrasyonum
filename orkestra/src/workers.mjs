@@ -8,20 +8,53 @@ const unlessMedium = (flag, effort) => (effort === 'medium' ? [] : [flag, effort
 // access: işçinin izin modu. Varsayılan "read" her CLI'da açıkça salt okunur moddur; "write" yalnızca
 // dosya düzenlemeye izin veren en dar moddur. Tam yetki veren bayraklar (dangerously, --auto, --allow-all) kullanılmaz.
 // args({ access }) bu bayrakları prompt'tan önce yerleştirir.
+//
+// session: oturum sürekliliği. null → desteklenmiyor. preset: true → kimliği orkestra üretir ve CLI'a verir;
+// aksi halde kimlik parse() ile çıktıdan yakalanır. args({ session: { id, resume } }) yeni oturum ya da devam.
+// parse(ham çıktı) → { text, sessionId, denied }: kullanıcıya gidecek metin, yakalanan oturum, reddedilen izin.
+
+const plain = (raw) => ({ text: raw, sessionId: null, denied: false });
+
+// OpenCode --format json: her satır bir olay; metin "text" olaylarında, oturum her olayın sessionID alanında.
+function parseOpencode(raw) {
+  const events = raw.split(/\r?\n/).filter((l) => l.trim().startsWith('{'))
+    .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const text = events.filter((e) => e.type === 'text').map((e) => e.part?.text ?? '').join('');
+  // Hata olayı uzun yanıt başlıkları içerir; kullanıcıya yalnızca mesajı göster (sınıflandırma ham çıktıda yapılır).
+  const errors = events.filter((e) => e.type === 'error').map((e) => `Error: ${e.error?.data?.message ?? e.error?.message ?? e.error?.name ?? 'bilinmeyen hata'}`);
+  return { text: text || errors.join('\n') || raw, sessionId: events.find((e) => e.sessionID)?.sessionID ?? null, denied: false };
+}
+
+// agy --output-format json: son satır sonuç nesnesi (conversation_id, response, denied_actions).
+function parseAgy(raw) {
+  const result = raw.split(/\r?\n/).reverse().map((l) => { try { return JSON.parse(l); } catch { return null; } })
+    .find((o) => o && typeof o === 'object' && 'conversation_id' in o);
+  if (!result) return plain(raw);
+  return { text: result.response || raw, sessionId: result.conversation_id, denied: (result.denied_actions ?? []).length > 0 && !result.response };
+}
+
 export const CLI_WORKERS = {
   claude: {
     label: 'Claude Code', cli: 'claude', billing: 'CLI aboneliği',
     models: { fast: 'haiku', normal: 'sonnet', deep: 'opus' },
     access: { read: ['--permission-mode', 'plan'], write: ['--permission-mode', 'acceptEdits'] },
-    args: ({ prompt, model, effort, access = [] }) => [...access, '-p', prompt, ...opt('--model', model), '--effort', effort],
+    session: { preset: true }, // yeni: --session-id <uuid>, devam: --resume <uuid>
+    parse: plain,
+    args: ({ prompt, model, effort, access = [], session }) => [
+      ...access, ...(session ? [session.resume ? '--resume' : '--session-id', session.id] : []),
+      '-p', prompt, ...opt('--model', model), '--effort', effort,
+    ],
   },
   codex: {
     label: 'Codex (ChatGPT)', cli: 'codex', billing: 'CLI aboneliği',
     models: { fast: 'gpt-5.6-luna', normal: 'gpt-6-luna', deep: 'gpt-6-luna' },
-    access: { read: ['-s', 'read-only'], write: ['-s', 'workspace-write'] }, // workspace-write: yalnızca proje klasörü
-    args: ({ prompt, model, effort, access = [] }) => [
-      'exec', '--skip-git-repo-check', ...opt('-m', model),
-      '-c', `model_reasoning_effort="${effort}"`, ...access, prompt,
+    // -s yerine -c sandbox_mode: "exec resume" -s kabul etmiyor; böylece okuma/yazma kuralı devamda da aynı kalır.
+    access: { read: ['-c', 'sandbox_mode="read-only"'], write: ['-c', 'sandbox_mode="workspace-write"'] },
+    session: { preset: false }, // kimlik çıktıdaki "session id: <uuid>" satırından
+    parse: (raw) => ({ ...plain(raw), sessionId: raw.match(/session id:\s*([0-9a-f-]{36})/i)?.[1] ?? null }),
+    args: ({ prompt, model, effort, access = [], session }) => [
+      'exec', ...(session?.resume ? ['resume'] : []), '--skip-git-repo-check', ...opt('-m', model),
+      '-c', `model_reasoning_effort="${effort}"`, ...access, ...(session?.resume ? [session.id] : []), prompt,
     ],
   },
   agy: {
@@ -31,22 +64,32 @@ export const CLI_WORKERS = {
     // etkileşimsiz modda bu izin otomatik reddedilip iş boş bitiyor. Komut izinleri yalnızca tam komut metniyle
     // tanımlanabildiği için dar bir yazma modu kurulamıyor (canlı test, 2026-11-18).
     access: { read: ['--mode', 'plan'], write: null },
-    args: ({ prompt, model, effort, access = [] }) => [...access, '-p', prompt, ...opt('--model', model), '--effort', effort],
+    session: { preset: false }, // kimlik JSON sonucundaki conversation_id
+    parse: parseAgy,
+    args: ({ prompt, model, effort, access = [], session }) => [
+      ...access, ...(session?.resume ? ['--conversation', session.id] : []),
+      '-p', prompt, '--output-format', 'json', ...opt('--model', model), '--effort', effort,
+    ],
   },
   kimi: {
     label: 'Kimi Code CLI', cli: 'kimi', billing: 'CLI ayarına bağlı (Moonshot API ya da Kimi aboneliği)',
     models: { fast: null, normal: null, deep: null }, // null → config.toml'daki default_model
     // Kimi'de yalnızca-düzenleme modu yok; --yolo rutin düzenleme ve komutları çalıştırır, riskli işleri yine sorar.
     access: { read: ['--plan'], write: ['--yolo'] },
+    session: null, // yalnızca "son oturum" (-c) var; kimlikle devam yok
+    parse: plain,
     args: ({ prompt, model, access = [] }) => [...access, '-p', prompt, ...opt('-m', model)], // efor bayrağı yok
   },
   copilot: {
     label: 'GitHub Copilot CLI', cli: 'copilot', billing: 'CLI aboneliği (AI kredisi)',
     models: { fast: null, normal: null, deep: null }, // null → Copilot kendisi seçer
     access: { read: ['--deny-tool=write'], write: ['--allow-tool=write'] },
+    session: { preset: true }, // --session-id hem yeni oturumun kimliğini belirler hem devam ettirir
+    parse: plain,
     // "auto" model (model verilmediğinde) efor ayarını reddeder; efor yalnızca açık modelle gönderilir.
-    args: ({ prompt, model, effort, access = [] }) => [
-      ...access, '-p', prompt, '-s', ...opt('--model', model), ...(model ? unlessMedium('--reasoning-effort', effort) : []),
+    args: ({ prompt, model, effort, access = [], session }) => [
+      ...access, ...(session ? ['--session-id', session.id] : []),
+      '-p', prompt, '-s', ...opt('--model', model), ...(model ? unlessMedium('--reasoning-effort', effort) : []),
     ],
   },
 };
@@ -56,11 +99,13 @@ const OPENCODE_ACCESS = { read: ['--agent', 'plan'], write: [] };
 
 // efforts: model → desteklenen efor listesi (katalogdan). Model desteklemiyorsa --variant gönderilmez;
 // katalogda olmayan model için kullanıcının isteği olduğu gibi iletilir.
-const opencodeArgs = (provider, efforts = {}) => ({ prompt, model, effort, access = [] }) => {
+// --format json: oturum kimliği yalnızca JSON olaylarında var; metin parseOpencode ile çıkarılır.
+const opencodeArgs = (provider, efforts = {}) => ({ prompt, model, effort, access = [], session }) => {
   if (!model) throw new Error(`${provider} için model seçilemedi`);
   const supported = efforts[model];
   const variant = effort !== 'medium' && (!supported || supported.includes(effort)) ? ['--variant', effort] : [];
-  return ['run', '-m', `${provider}/${model}`, ...variant, ...access, prompt];
+  return ['run', '-m', `${provider}/${model}`, ...variant, '--format', 'json',
+    ...(session?.resume ? ['--session', session.id] : []), ...access, prompt];
 };
 const effortMap = (models) => Object.fromEntries(models.map((m) => [m.id, m.efforts]));
 
@@ -121,6 +166,8 @@ export function buildWorkers({ catalog = {}, auth = {}, env = process.env, overr
       authProvider: provider, availableModels: ids,
       models: tiersFor(id, ids, overrides[id]),
       access: OPENCODE_ACCESS,
+      session: { preset: false }, // kimlik JSON olaylarındaki sessionID
+      parse: parseOpencode,
       args: opencodeArgs(provider, effortMap(models)),
     };
   }
@@ -142,6 +189,8 @@ export function buildWorkers({ catalog = {}, auth = {}, env = process.env, overr
       billing: billingOf(info), authProvider: provider, availableModels: modelIds,
       models: tiersFor(provider, modelIds, overrides[id]),
       access: OPENCODE_ACCESS,
+      session: { preset: false }, // kimlik JSON olaylarındaki sessionID
+      parse: parseOpencode,
       args: opencodeArgs(provider, effortMap(models)),
     };
   }

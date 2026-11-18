@@ -8,6 +8,16 @@ if (mode === 'echo') {
   console.log(process.cwd());
 } else if (mode === 'pwd') {
   console.log(process.env.PWD ?? '');
+} else if (mode === 'session') {
+  // Codex gibi oturum kimliğini başlıkta yazan işçi.
+  console.log('workdir: x\nsession id: 11111111-2222-4333-8444-555555555555\n--------\nPONG');
+} else if (mode === 'agy-denied') {
+  // agy: izin reddedilince yanıt boş, JSON'da denied_actions dolu.
+  console.log('jetski: no output produced — a tool required the "command" permission');
+  console.log(JSON.stringify({ conversation_id: 'conv-1', status: 'SUCCESS', response: '', denied_actions: [{ action: 'command' }] }));
+} else if (mode === 'echo-session') {
+  // Argümanları yazar ve OpenCode gibi JSON olayıyla oturum kimliği verir.
+  console.log(JSON.stringify({ type: 'text', sessionID: 'ses_test', part: { type: 'text', text: JSON.stringify(args) } }));
 } else if (mode === 'chunks') {
   // Çıktıyı parça parça üreten, uzun süren bir işçiyi taklit eder.
   for (const line of ['adım 1: dosyalar okunuyor', 'adım 2: düzeltme yapılıyor', 'adım 3: bitti']) {

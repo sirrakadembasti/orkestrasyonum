@@ -57,16 +57,16 @@ test('çalıştırma: prompt kabuk olmadan bozulmadan iletilir', async () => {
   const prompt = 'a "tırnak" & b | c > d %PATH% $HOME `x`';
   const r = await runWorker(workers['opencode:minimax'], { prompt, effort: 'high', env: envWith('echo'), resolve: fakeResolve });
   assert.equal(r.status, 'ok');
-  assert.deepEqual(JSON.parse(r.output), ['run', '-m', 'minimax/MiniMax-M3', '--variant', 'high', '--agent', 'plan', prompt]);
+  assert.deepEqual(JSON.parse(r.output), ['run', '-m', 'minimax/MiniMax-M3', '--variant', 'high', '--format', 'json', '--agent', 'plan', prompt]);
 });
 
 test('erişim: varsayılan salt okunur, write: true yazma modunu açar', async () => {
   const read = await runWorker(workers.codex, { prompt: 'p', env: envWith('echo'), resolve: fakeResolve });
   assert.equal(read.access, 'okuma');
-  assert.ok(JSON.parse(read.output).join(' ').includes('-s read-only'));
+  assert.ok(JSON.parse(read.output).join(' ').includes('sandbox_mode="read-only"'));
   const write = await runWorker(workers.codex, { prompt: 'p', write: true, env: envWith('echo'), resolve: fakeResolve });
   assert.equal(write.access, 'yazma');
-  assert.ok(JSON.parse(write.output).join(' ').includes('-s workspace-write'));
+  assert.ok(JSON.parse(write.output).join(' ').includes('sandbox_mode="workspace-write"'));
 });
 
 test('erişim: yazma modu olmayan işçiye --write verilirse işçi başlatılmadan reddedilir', async () => {

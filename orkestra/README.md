@@ -67,6 +67,26 @@ node bin/orkestra.mjs run codex --dir "D:/kodlar/uygulamam" --stream -- "görev"
 
 "Son çıktıdan beri" süresi uzadıysa işçi takılmış olabilir. `kayıp (süreç yok)` ise orkestra süreci iş bitmeden öldü demektir.
 
+## Oturum sürekliliği (`--continue`)
+İşçi önceki görevini hatırlasın diye aynı oturumda devam ettirilebilir:
+
+```bash
+node bin/orkestra.mjs run codex --dir "D:/kodlar/uygulamam" -- "src/api.js'deki hataları bul"
+# [izleme] oturum: … · devam için: --continue codex-20261118-101500-a1b2
+node bin/orkestra.mjs run codex --continue codex-20261118-101500-a1b2 -- "en kritik olanı için düzeltme öner"
+```
+
+| İşçi | Yeni oturum | Devam |
+|---|---|---|
+| claude | `--session-id <uuid>` (kimliği orkestra üretir) | `--resume <uuid>` |
+| copilot | `--session-id <uuid>` (kimliği orkestra üretir) | aynı |
+| codex | çıktıdaki `session id:` satırı | `exec resume <kimlik>` |
+| opencode* | `--format json` olaylarındaki `sessionID` | `--session <kimlik>` |
+| agy | `--output-format json` sonucundaki `conversation_id` | `--conversation <kimlik>` |
+| kimi | — desteklenmiyor | — |
+
+Devam, önceki çalışmanın işçisiyle ve klasöründe yapılır; okuma/yazma modu her çağrıda ayrıca verilir. OpenCode ve agy JSON biçiminde çalıştırılır; orkestra metni ve hata mesajlarını JSON'dan çıkarır (`--stream` ham JSON olaylarını gösterir). agy bir izin reddi yüzünden boş dönerse durum `izin reddedildi` olur.
+
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede aynı anda yazacaksa `--write --worktree` kullan (proje git deposu olmalı):
 

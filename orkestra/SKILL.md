@@ -26,6 +26,7 @@ $O status                    # ücretsiz: kurulu mu, kimlik girilmiş mi
 $O status --probe            # her işçiye kısa test gönderir — KREDİ HARCAR
 $O models <işçi>             # katmanlar ve kullanılabilir modeller
 $O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal|derin] [--model m] [--effort low|medium|high|xhigh|max] [--timeout sn] [--stream] [--json] -- "<prompt>"
+$O run <işçi> --continue <çalışma kimliği> -- "<devam prompt'u>"   # aynı oturumda, aynı klasörde devam
 $O runs                      # son çalışmalar: durum, başlayalı, son çıktıdan beri
 $O watch <kimlik>            # bir çalışmanın durumu ve günlüğün son satırları
 ```
@@ -45,6 +46,14 @@ Her `run` başlarken stderr'e `[izleme] kimlik: <kimlik>` yazar; işçinin çık
 - **Son çıktıdan beri** süresi uzadıysa (agy için ~3 dk, diğerleri için ~2 dk) işçi takılmış olabilir: günlüğün son satırlarına bak, gerekirse kullanıcıya bildir.
 - `kayıp (süreç yok)` durumu, orkestra süreci bitmeden öldü demektir; sonucu güvenilir değildir, gerekirse görevi yeniden ver.
 - `--stream` çıktıyı geldikçe ekrana da basar; arka plan görevinin çıktısını canlı okumak için kullan.
+
+## Oturum sürekliliği (`--continue`)
+İşçi önceki görevini hatırlasın diye aynı oturumda devam ettir: `$O run <işçi> --continue <çalışma kimliği> -- "<prompt>"`.
+- Çalışma kimliği `[izleme] kimlik: …` satırındadır; iş bitince `[izleme] oturum: … · devam için: --continue <kimlik>` yazar.
+- Devam aynı işçiyle ve önceki çalışmanın proje klasöründe yapılır (`--dir` verilirse o kullanılır). Farklı bir işçiyle devam reddedilir.
+- Devam prompt'unda bağlamı yeniden anlatma; yalnızca yeni isteği yaz ("az önce yazdığın fonksiyona test ekle").
+- Okuma/yazma modu her çağrıda ayrıca verilir: önceki çalışma `--write` olsa bile devam varsayılan olarak salt okunurdur.
+- Desteklenmeyenler: `kimi` (kimlikle devam yok) ve `--worktree` ile birlikte kullanım (önceki kopya silinmiştir).
 
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede **aynı anda** dosya yazacaksa her birine `--write --worktree` ver. Proje bir git deposu olmalı ve en az bir commit içermeli.
@@ -80,6 +89,7 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 | `zaman aşımı` | `--timeout` değerini artır ya da başka bir işçi seç |
 | `kurulu değil` | O işçiyi atla |
 | `pasif` | Kullanıcı bu işçiyi kapattı; kullanma, önerme. Kullanıcı açıkça isterse ayardan açmasını söyle |
+| `izin reddedildi` | İşçi (özellikle agy) gereken bir izni etkileşimsiz modda alamadı ve boş döndü; görevi daraltıp yeniden ver ya da başka işçi seç |
 | `Proje dizini bulunamadı` | Yolu kullanıcıya doğrulat |
 
 ## Kurallar

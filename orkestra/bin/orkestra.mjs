@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // orkestra status [--probe] [--only a,b] [--json]
 // orkestra models <işçi>
-// orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort e] [--need hizli|normal|derin] [--timeout sn] [--json] -- <prompt>
+// orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--continue çalışma-kimliği] [--model m] [--effort e] [--need hizli|normal|derin] [--timeout sn] [--json] -- <prompt>
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -102,11 +102,19 @@ async function main() {
     const prompt = promptParts.join(' ');
     if (!prompt) throw new Error('Prompt boş. Kullanım: orkestra run <işçi> [seçenekler] -- <prompt>');
     const write = flags.write === true;
-    // Yazma, yanlış klasörde dosya değiştirmemek için yalnızca açıkça verilen proje klasöründe yapılır.
-    if (write && typeof flags.dir !== 'string') throw new Error('--write için --dir ile proje klasörünü açıkça ver');
+    // --continue <çalışma kimliği>: aynı işçinin önceki oturumunda, aynı proje klasöründe devam eder.
+    let prev = null;
+    if (typeof flags.continue === 'string') {
+      if (flags.worktree) throw new Error('--continue ile --worktree birlikte kullanılamaz (önceki çalışma kopyası silindi)');
+      prev = readRun(flags.continue);
+      if (prev.worker !== workerId) throw new Error(`${prev.id} farklı bir işçiye ait (${prev.worker}); devam için aynı işçiyi seç`);
+      if (!prev.sessionId) throw new Error(`${prev.id} için kayıtlı oturum kimliği yok; devam edilemiyor`);
+    }
+    // Yazma, yanlış klasörde dosya değiştirmemek için yalnızca açıkça verilen (ya da devam edilen) proje klasöründe yapılır.
+    if (write && typeof flags.dir !== 'string' && !prev) throw new Error('--write için --dir ile proje klasörünü açıkça ver');
     if (flags.worktree && !write) throw new Error('--worktree yalnızca --write ile kullanılır (salt okunur işçi zaten bir şey değiştirmez)');
     if (write) assertCanWrite(worker); // worktree ve çalışma kaydı açılmadan önce
-    const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
+    const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : prev?.dir ?? undefined);
     // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
     const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;
     const choice = {
@@ -127,6 +135,7 @@ async function main() {
         write,
         ...choice,
         timeoutMs: flags.timeout ? Number(flags.timeout) * 1000 : undefined,
+        session: prev?.sessionId,
         onOutput: (chunk) => { log.append(chunk); if (stream) process.stdout.write(chunk); },
       });
     } catch (err) {
@@ -141,6 +150,7 @@ async function main() {
     }
     result.runId = log.id;
     log.finish(result);
+    if (result.sessionId) console.error(`[izleme] oturum: ${result.sessionId} · devam için: --continue ${log.id}`);
     if (flags.json) console.log(JSON.stringify(result, null, 2));
     else {
       console.error(`[${result.worker} · ${result.model ?? 'varsayılan'} · efor=${result.effort} · ${STATUS_TEXT[result.status] ?? result.status} · ${(result.durationMs / 1000).toFixed(1)} sn · ${result.access} · ${result.dir}]`);
@@ -182,6 +192,7 @@ async function main() {
       ? `süre: ${ago(Date.parse(r.finishedAt) - Date.parse(r.startedAt))} · bitiş: ${ago(now - Date.parse(r.finishedAt))} önce`
       : `başlayalı: ${ago(now - Date.parse(r.startedAt))} · son çıktıdan beri: ${r.lastOutputAt ? ago(now - Date.parse(r.lastOutputAt)) : 'henüz çıktı yok'}`);
     if (r.worktree?.branch) console.log(`worktree dalı: ${r.worktree.branch}`);
+    if (r.sessionId) console.log(`oturum: ${r.sessionId} · devam için: --continue ${r.id}`);
     console.log(`günlük: ${r.log}\n--- son ${r.tail.length} satır ---`);
     console.log(r.tail.join('\n'));
     return;
@@ -190,7 +201,7 @@ async function main() {
   console.log(`Kullanım:
   orkestra status [--probe] [--only işçi1,işçi2] [--timeout sn] [--json]
   orkestra models <işçi>
-  orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--stream] [--json] -- <prompt>
+  orkestra run <işçi> [--dir proje-yolu [--write [--worktree]]] [--continue çalışma-kimliği] [--model m] [--effort ${EFFORTS.join('|')}] [--need ${Object.keys(NEEDS).join('|')}] [--timeout sn] [--stream] [--json] -- <prompt>
   orkestra runs [--limit n] [--json]          # son çalışmalar: durum, süre, son çıktıdan beri
   orkestra watch <kimlik> [--lines n] [--json] # bir çalışmanın durumu ve günlüğün son satırları
 Varsayılan: ihtiyaç=${DEFAULT_NEED}, efor=${DEFAULT_EFFORT} (normal)`);

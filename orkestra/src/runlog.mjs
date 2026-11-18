@@ -39,6 +39,7 @@ export function createRun(info, { root = runsRoot(), now = new Date(), pid = pro
       Object.assign(meta, {
         status: result.status, exitCode: result.exitCode ?? null, durationMs: result.durationMs ?? null,
         finishedAt: new Date().toISOString(), worktree: result.worktree ?? null,
+        sessionId: result.sessionId ?? null, // --continue bu kimlikle aynı oturumda devam eder
       });
       writeMeta(root, meta);
     },
