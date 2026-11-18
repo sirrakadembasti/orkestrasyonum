@@ -27,7 +27,10 @@ export const CLI_WORKERS = {
   agy: {
     label: 'Antigravity (agy)', cli: 'agy', billing: 'CLI aboneliği', timeoutMs: 300_000,
     models: { fast: null, normal: null, deep: null }, // agy kendi varsayılan modelini seçer
-    access: { read: ['--mode', 'plan'], write: ['--mode', 'accept-edits'] },
+    // write: null → yalnızca okuma işçisi. accept-edits düzenlemeye izin veriyor ama agy düzenlerken komut da istiyor;
+    // etkileşimsiz modda bu izin otomatik reddedilip iş boş bitiyor. Komut izinleri yalnızca tam komut metniyle
+    // tanımlanabildiği için dar bir yazma modu kurulamıyor (canlı test, 2026-11-18).
+    access: { read: ['--mode', 'plan'], write: null },
     args: ({ prompt, model, effort, access = [] }) => [...access, '-p', prompt, ...opt('--model', model), '--effort', effort],
   },
   kimi: {

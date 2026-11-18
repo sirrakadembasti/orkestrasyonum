@@ -48,7 +48,7 @@ node bin/orkestra.mjs run opencode:minimax --model MiniMax-M3 --effort high -- "
 | claude | `--permission-mode plan` | `--permission-mode acceptEdits` |
 | codex | `-s read-only` | `-s workspace-write` (yalnızca proje klasörü) |
 | copilot | `--deny-tool=write` | `--allow-tool=write` |
-| agy | `--mode plan` | `--mode accept-edits` |
+| agy | `--mode plan` | — desteklenmiyor (etkileşimsiz modda komut izni beklerken boş dönüyor; `--write` reddedilir) |
 | kimi | `--plan` | `--yolo` (rutin komutları da çalıştırır) |
 | opencode* | `--agent plan` | varsayılan `build` ajanı |
 

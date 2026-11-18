@@ -7,7 +7,7 @@ import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { STATUS_TEXT } from '../src/classify.mjs';
 import { DEFAULT_EFFORT, DEFAULT_NEED, EFFORTS, NEEDS } from '../src/effort.mjs';
-import { resolveProjectDir, runWorker, selectModelAndEffort } from '../src/runner.mjs';
+import { assertCanWrite, resolveProjectDir, runWorker, selectModelAndEffort } from '../src/runner.mjs';
 import { createRun, listRuns, readRun } from '../src/runlog.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
 import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
@@ -105,6 +105,7 @@ async function main() {
     // Yazma, yanlış klasörde dosya değiştirmemek için yalnızca açıkça verilen proje klasöründe yapılır.
     if (write && typeof flags.dir !== 'string') throw new Error('--write için --dir ile proje klasörünü açıkça ver');
     if (flags.worktree && !write) throw new Error('--worktree yalnızca --write ile kullanılır (salt okunur işçi zaten bir şey değiştirmez)');
+    if (write) assertCanWrite(worker); // worktree ve çalışma kaydı açılmadan önce
     const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
     // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
     const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;

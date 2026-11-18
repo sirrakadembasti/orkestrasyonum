@@ -61,7 +61,7 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 |---|---|
 | Kod yazma, inceleme, ikinci görüş | `codex` |
 | Claude modelleri | `claude` |
-| Gemini ve Google modelleri | `agy` (açılışı 50–170 sn; `--timeout 300`) |
+| Gemini ve Google modelleri | `agy` (**yalnızca okuma**: inceleme, analiz, plan; `--write` reddedilir; açılışı 50–170 sn, `--timeout 300`) |
 | GitHub bağlamı | `copilot` (her çağrı AI kredisi harcar) |
 | Kimi (kendi CLI'ı) | `kimi` (efor bayrağı yok; faturalama CLI ayarına bağlı, API ise kredi harcar) |
 | Ücretsiz, basit işler | `opencode-free` (OpenCode Zen'in sınırlı ücretsiz modelleri) |
@@ -86,7 +86,7 @@ Tek bir işçi çalışacaksa `--worktree` gerekmez; `--write` doğrudan proje k
 - API anahtarlarını kendin girme, okuma ya da yazdırma. Kimlik eklemek her zaman kullanıcının işidir.
 - Aynı CLI'dan birden fazla süreci aynı anda çalıştırma: eşzamanlı `opencode` süreçleri zaman aşımına düşüyor. Farklı CLI'lar paralel çalışabilir.
 - 2 dakikadan uzun sürebilecek çağrıları arka planda çalıştır.
-- `--write` her CLI'da yalnızca dosya düzenlemeye izin veren en dar modu açar (Codex'te yalnızca proje klasörüne yazabilir). İstisna `kimi`: rutin komutları da çalıştırır. Tam yetki veren bayraklar hiçbir modda kullanılmaz.
+- `--write` her CLI'da yalnızca dosya düzenlemeye izin veren en dar modu açar (Codex'te yalnızca proje klasörüne yazabilir). İstisna `kimi`: rutin komutları da çalıştırır. `agy` etkileşimsiz modda yazamaz; yazma işini başka işçiye ver. Tam yetki veren bayraklar hiçbir modda kullanılmaz.
 - `--write` ile çalışan bir işçi sonrası yapılan değişiklikleri kullanıcıya göster; geri alınması gerekirse kullanıcıya sor.
 
 ## Ayar

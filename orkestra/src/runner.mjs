@@ -33,12 +33,20 @@ function killTree(child) {
   }
 }
 
+// Yazma modu tanımlı olmayan (write: null) işçiler yalnızca okuma işi alabilir.
+export function assertCanWrite(worker) {
+  if (worker.access?.write === null) {
+    throw new Error(`${worker.id} etkileşimsiz modda dosya yazamıyor (yalnızca okuma işçisi); yazma için başka bir işçi seç`);
+  }
+}
+
 export async function runWorker(worker, {
   prompt, model, effort, need, cwd, write = false, env = process.env,
   timeoutMs = worker.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   onOutput = () => {}, // işçi sürerken gelen her çıktı parçası (izleme için)
   spawn = nodeSpawn, resolve = resolveCommand,
 } = {}) {
+  if (write) assertCanWrite(worker);
   const chosen = selectModelAndEffort(worker, { model, effort, need });
   const base = { worker: worker.id, model: chosen.model, effort: chosen.effort, dir: cwd ?? process.cwd(), access: write ? 'yazma' : 'okuma' };
   const resolved = resolve(worker.cli, { env });

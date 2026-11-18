@@ -69,6 +69,23 @@ test('erişim: varsayılan salt okunur, write: true yazma modunu açar', async (
   assert.ok(JSON.parse(write.output).join(' ').includes('-s workspace-write'));
 });
 
+test('erişim: yazma modu olmayan işçiye --write verilirse işçi başlatılmadan reddedilir', async () => {
+  let spawned = false;
+  const spawn = () => { spawned = true; throw new Error('başlatılmamalıydı'); };
+  await assert.rejects(runWorker(workers.agy, { prompt: 'p', write: true, spawn, resolve: fakeResolve }), /agy etkileşimsiz modda dosya yazamıyor/);
+  assert.equal(spawned, false);
+});
+
+test('komut satırı: yazma modu olmayan işçi --write ile reddedilir, kayıt ve worktree açılmaz', () => {
+  const project = mkdtempSync(join(tmpdir(), 'orkestra-proje-'));
+  const home = mkdtempSync(join(tmpdir(), 'orkestra-home-'));
+  const r = spawnSync(process.execPath, [BIN, 'run', 'agy', '--dir', project, '--write', '--', 'merhaba'],
+    { encoding: 'utf8', env: { ...process.env, PATH: '', Path: '', ORKESTRA_HOME: home } });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /agy etkileşimsiz modda dosya yazamıyor/);
+  assert.doesNotMatch(r.stderr, /\[izleme\]/, 'reddedilen iş için çalışma kaydı açılmamalı');
+});
+
 test('komut satırı: --write açık bir --dir olmadan reddedilir', () => {
   const r = spawnSync(process.execPath, [BIN, 'run', 'codex', '--write', '--', 'merhaba'], { encoding: 'utf8', env: { ...process.env, PATH: '', Path: '' } });
   assert.equal(r.status, 2);

@@ -154,7 +154,8 @@ test('erişim: her işçinin açık okuma ve en dar yazma modu var', () => {
     claude: { read: ['--permission-mode', 'plan'], write: ['--permission-mode', 'acceptEdits'] },
     codex: { read: ['-s', 'read-only'], write: ['-s', 'workspace-write'] },
     copilot: { read: ['--deny-tool=write'], write: ['--allow-tool=write'] },
-    agy: { read: ['--mode', 'plan'], write: ['--mode', 'accept-edits'] },
+    // agy etkileşimsiz modda dar bir yazma izni sunmuyor (canlı testte accept-edits komut izni bekleyip boş döndü).
+    agy: { read: ['--mode', 'plan'], write: null },
     kimi: { read: ['--plan'], write: ['--yolo'] },
     'opencode-go': { read: ['--agent', 'plan'], write: [] },
     'opencode-free': { read: ['--agent', 'plan'], write: [] },
