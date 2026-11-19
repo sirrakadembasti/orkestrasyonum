@@ -11,15 +11,16 @@ import { FAKE_CLI } from './helpers.mjs';
 const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'orkestra.mjs');
 
 // PATH'te yalnızca sahte "codex" var; gerçek bir AI CLI'ına ulaşılamaz.
-function setup() {
+function setup({ extraPath = '' } = {}) {
   const bin = mkdtempSync(join(tmpdir(), 'orkestra-bin-'));
+  const path = bin + extraPath;
   copyFileSync(FAKE_CLI, join(bin, 'fake.js'));
   writeFileSync(join(bin, 'package.json'), '{"type":"module"}');
   writeFileSync(join(bin, 'codex.cmd'), '@echo off\r\nnode "%dp0%\\fake.js" %*\r\n');
   const home = mkdtempSync(join(tmpdir(), 'orkestra-home-'));
   const dir = mkdtempSync(join(tmpdir(), 'orkestra-proje-'));
   const cli = (mode, ...args) => spawnSync(process.execPath, [BIN, ...args], {
-    encoding: 'utf8', env: { ...process.env, PATH: bin, Path: bin, ORKESTRA_HOME: home, FAKE_MODE: mode },
+    encoding: 'utf8', env: { ...process.env, PATH: path, Path: path, ORKESTRA_HOME: home, FAKE_MODE: mode },
   });
   return { dir, cli };
 }
@@ -76,6 +77,25 @@ test('komut satırı: run --task görevi başlatır, işçi bitince "doğrulanac
   assert.equal(cont.status, 0, cont.stderr);
   t1 = readPlan(dir).tasks[0];
   assert.equal(t1.runs.length, 2);
+});
+
+test('komut satırı: worktree işçisi hatayla bitse de dalı plana yazılır (iş kaybolmasın)', winOnly, () => {
+  // worktree için orkestra git'i de bulmalı (sahte CLI'lar yine tek AI CLI'ı).
+  const gitDir = dirname(spawnSync('where', ['git'], { encoding: 'utf8' }).stdout.split(/\r?\n/)[0]);
+  const { dir, cli } = setup({ extraPath: `;${gitDir}` });
+  const git = (...a) => spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' });
+  git('init', '-q');
+  writeFileSync(join(dir, 'a.txt'), 'a\n');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'ilk');
+  cli('ok', 'plan', 'init', '--dir', dir, '--', 'hedef');
+  cli('ok', 'plan', 'add', '--dir', dir, '--', 'iş');
+  const r = cli('write-fail', 'run', 'codex', '--dir', dir, '--write', '--worktree', '--task', 't1', '--', 'x');
+  assert.equal(r.status, 1, r.stderr);
+  const t1 = readPlan(dir).tasks[0];
+  assert.equal(t1.status, 'failed');
+  assert.match(t1.branch ?? '', /^orkestra\/codex-/, 'başarısız görevin dalı da kaydedilmeli');
+  assert.equal(git('rev-parse', '--verify', '-q', t1.branch).status, 0, 'dal gerçekten var olmalı');
 });
 
 test('komut satırı: bilinmeyen görev ya da plan yoksa işçi başlatılmaz', winOnly, () => {

@@ -30,6 +30,23 @@ if (mode === 'echo') {
   await new Promise((r) => setTimeout(r, 300));
   writeFileSync(process.env.FAKE_FILE ?? 'isci.txt', process.env.FAKE_CONTENT ?? 'merhaba\n');
   console.log('yazdım');
+} else if (mode === 'write-fail') {
+  // Dosyayı yazıp sonra bağlantı hatasıyla düşen işçi (iş yarım ya da tamam olabilir).
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync('yarim.txt', 'yarım iş\n');
+  console.error('Error: Cannot connect to API: The socket connection was closed unexpectedly.');
+  process.exitCode = 1;
+} else if (mode === 'codex-tool-noise') {
+  // Codex: ilerleme dökümü (işçinin çalıştırdığı komutların çıktısı dahil) stderr'e, son mesaj stdout'a.
+  console.error(['session id: 11111111-2222-4333-8444-555555555555', 'exec', 'npm test', '+ FullyQualifiedErrorId : UnauthorizedAccess', 'HTTP 401', 'codex', 'bitti', 'tokens used', '12'].join('\n'));
+  console.log('Testler geçti.');
+} else if (mode === 'opencode-tool-noise') {
+  // OpenCode: araç çıktısında kimlik hatasına benzeyen metin, işçinin cevabı ayrı.
+  console.log(JSON.stringify({ type: 'tool_use', sessionID: 'ses_x', part: { state: { output: 'Error: 401 Unauthorized (projenin kendi API testi)' } } }));
+  console.log(JSON.stringify({ type: 'text', sessionID: 'ses_x', part: { type: 'text', text: 'Testler geçti.' } }));
+} else if (mode === 'opencode-text-then-error') {
+  console.log(JSON.stringify({ type: 'text', sessionID: 'ses_x', part: { type: 'text', text: 'Başlıyorum' } }));
+  console.log(JSON.stringify({ type: 'error', sessionID: 'ses_x', error: { data: { message: 'This API key has expired.' } } }));
 } else if (mode === 'ok') {
   console.log('PONG');
 } else if (mode === 'expired') {

@@ -164,9 +164,11 @@ async function main() {
     result.runId = log.id;
     log.finish(result);
     // İşçinin "tamam" demesi kanıt değil: başarılı iş "review" olur, beyin doğrulayınca "done" yapar.
+    // Dal başarısız işte de kaydedilir: işçi hatayla düşse de (ör. bağlantı koptu) iş tamamlanmış olabilir.
+    const branch = result.worktree?.branch ? { branch: result.worktree.branch } : {};
     markTask(result.status === 'ok'
-      ? { status: 'review', ...(result.worktree?.branch ? { branch: result.worktree.branch } : {}) }
-      : { status: 'failed', note: STATUS_TEXT[result.status] ?? result.status });
+      ? { status: 'review', ...branch }
+      : { status: 'failed', note: STATUS_TEXT[result.status] ?? result.status, ...branch });
     if (result.sessionId) console.error(`[izleme] oturum: ${result.sessionId} · devam için: --continue ${log.id}`);
     if (flags.json) console.log(JSON.stringify(result, null, 2));
     else {

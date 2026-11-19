@@ -104,6 +104,18 @@ test('çalıştırma: başarılı, süresi dolmuş, geçersiz anahtar', async ()
   assert.equal(invalid.exitCode, 1);
 });
 
+test('sınıflandırma: işçinin araç çıktısındaki kimlik hatası benzeri metin işçiyi başarısız saymaz', async () => {
+  const codex = await runWorker(workers.codex, { prompt: 'p', env: envWith('codex-tool-noise'), resolve: fakeResolve });
+  assert.equal(codex.status, 'ok');
+  assert.equal(codex.output, 'Testler geçti.', 'Codex cevabı yalnızca son mesaj (stdout) olmalı');
+  assert.equal(codex.sessionId, '11111111-2222-4333-8444-555555555555');
+  const oc = await runWorker(workers['opencode-free'], { prompt: 'p', env: envWith('opencode-tool-noise'), resolve: fakeResolve });
+  assert.equal(oc.status, 'ok');
+  assert.equal(oc.output, 'Testler geçti.');
+  const ocErr = await runWorker(workers['opencode-free'], { prompt: 'p', env: envWith('opencode-text-then-error'), resolve: fakeResolve });
+  assert.equal(ocErr.status, 'expired_key', 'metinden sonra gelen hata olayı kaybolmamalı');
+});
+
 test('çalıştırma: zaman aşımı süreci öldürür', async () => {
   const r = await runWorker(workers.agy, { prompt: 'p', env: envWith('sleep'), resolve: fakeResolve, timeoutMs: 1500 });
   assert.equal(r.status, 'timeout');

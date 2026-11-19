@@ -66,17 +66,19 @@ export async function runWorker(worker, {
     const childEnv = cwd ? { ...env, PWD: cwd } : env;
     const child = spawn(resolved.file, args, { cwd, env: childEnv, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let output = '';
+    let stdout = '';
     let timedOut = false;
     const collect = (d) => { output += d; onOutput(stripAnsi(d)); };
-    child.stdout.on('data', collect);
+    child.stdout.on('data', (d) => { stdout += d; collect(d); });
     child.stderr.on('data', collect);
     const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMs);
     const finish = (exitCode, extra = '') => {
       clearTimeout(timer);
       const raw = stripAnsi(output + extra).trim();
-      const parsed = (worker.parse ?? ((r) => ({ text: r, sessionId: null, denied: false })))(raw);
-      // Hata kalıpları ham çıktıda aranır; JSON'dan çıkarılan metin yalnızca kullanıcıya gösterilir.
-      let status = classify({ output: raw, exitCode, timedOut });
+      const parsed = (worker.parse ?? ((r) => ({ text: r, sessionId: null, denied: false })))(raw, { stdout: stripAnsi(stdout).trim() });
+      // Başarılı çıkışta yalnızca işçinin cevabı taranır: ham döküm işçinin çalıştırdığı komutların çıktısını da
+      // içerir ("UnauthorizedAccess", "401" gibi) ve işçiyi yanlışlıkla kimlik hatasıyla işaretler.
+      let status = classify({ output: exitCode === 0 ? parsed.text : raw, exitCode, timedOut });
       if (status === 'ok' && parsed.denied) status = 'permission_denied';
       done({
         ...base, status, exitCode, output: parsed.text.trim(), durationMs: Date.now() - started,

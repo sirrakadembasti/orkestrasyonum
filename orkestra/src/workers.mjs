@@ -20,9 +20,9 @@ function parseOpencode(raw) {
   const events = raw.split(/\r?\n/).filter((l) => l.trim().startsWith('{'))
     .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
   const text = events.filter((e) => e.type === 'text').map((e) => e.part?.text ?? '').join('');
-  // Hata olayı uzun yanıt başlıkları içerir; kullanıcıya yalnızca mesajı göster (sınıflandırma ham çıktıda yapılır).
+  // Hata olayı uzun yanıt başlıkları içerir; yalnızca mesajı al. Metinden sonra gelse de cevaba eklenir ki sınıflandırılsın.
   const errors = events.filter((e) => e.type === 'error').map((e) => `Error: ${e.error?.data?.message ?? e.error?.message ?? e.error?.name ?? 'bilinmeyen hata'}`);
-  return { text: text || errors.join('\n') || raw, sessionId: events.find((e) => e.sessionID)?.sessionID ?? null, denied: false };
+  return { text: [text, ...errors].filter(Boolean).join('\n') || raw, sessionId: events.find((e) => e.sessionID)?.sessionID ?? null, denied: false };
 }
 
 // agy --output-format json: son satır sonuç nesnesi (conversation_id, response, denied_actions).
@@ -53,7 +53,8 @@ export const CLI_WORKERS = {
     // -s yerine -c sandbox_mode: "exec resume" -s kabul etmiyor; böylece okuma/yazma kuralı devamda da aynı kalır.
     access: { read: ['-c', 'sandbox_mode="read-only"'], write: ['-c', 'sandbox_mode="workspace-write"'] },
     session: { preset: false }, // kimlik çıktıdaki "session id: <uuid>" satırından
-    parse: (raw) => ({ ...plain(raw), sessionId: raw.match(/session id:\s*([0-9a-f-]{36})/i)?.[1] ?? null }),
+    // İlerleme dökümü stderr'e, son mesaj stdout'a yazılır; cevap son mesajdır.
+    parse: (raw, { stdout } = {}) => ({ ...plain(stdout || raw), sessionId: raw.match(/session id:\s*([0-9a-f-]{36})/i)?.[1] ?? null }),
     args: ({ prompt, model, effort, access = [], session }) => [
       'exec', ...(session?.resume ? ['resume'] : []), '--skip-git-repo-check', ...opt('-m', model),
       '-c', `model_reasoning_effort="${effort}"`, ...access, ...(session?.resume ? [session.id] : []), prompt,
