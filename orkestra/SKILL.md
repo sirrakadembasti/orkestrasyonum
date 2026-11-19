@@ -29,9 +29,26 @@ $O run <işçi> --dir "<proje yolu>" [--write [--worktree]] [--need hizli|normal
 $O run <işçi> --continue <çalışma kimliği> -- "<devam prompt'u>"   # aynı oturumda, aynı klasörde devam
 $O runs                      # son çalışmalar: durum, başlayalı, son çıktıdan beri
 $O watch <kimlik>            # bir çalışmanın durumu ve günlüğün son satırları
+$O profile                   # işçi profili: durum, yazabilir mi, oturum, maliyet, geçmiş başarı (ücretsiz)
+$O plan init --dir "<proje>" -- "<hedef>"
+$O plan add  --dir "<proje>" [--worker w] [--depends t1,t2] [--note "bitti ölçütü"] -- "<görev>"
+$O plan set <görev> --dir "<proje>" [--status todo|doing|review|done|failed|blocked] [--note "…"]
+$O plan show --dir "<proje>" [--json]   # görevler, hazır olanlar, doğrulanacaklar
+$O run <işçi> --dir "<proje>" --task <görev> … -- "<prompt>"   # çalışmayı plandaki göreve bağlar
 ```
 
-## Akış
+## Proje yürütme (beyin sensin)
+Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştirilmesini istediğinde **planlayan, iş dağıtan, izleyen ve doğrulayan sensin**; orkestra yalnızca kararlarını uygular. Hangi işin kime gideceğini projenin ihtiyacına göre sen belirlersin: hız, maliyet, kalite, işçinin yeteneği ve geçmiş başarısı.
+1. **Hedef ve proje yolu:** Kullanıcıdan al; belirsizse sor. Maliyet/hız/kalite önceliği belirsizse sor.
+2. **Ekibi tanı:** `$O profile`. Yalnızca hazır işçileri kullan; `canWrite: hayır` olanlara yazma işi verme.
+3. **Planla:** Plan varsa `plan show` ile kaldığın yerden devam et; yoksa `plan init`. Hedefi küçük, doğrulanabilir görevlere böl (`plan add`); bağımlılıkları `--depends` ile, "bitti" ölçütünü `--note` ile yaz.
+4. **Dağıt:** `plan show`'daki **hazır** görevleri başlat: `run <işçi> --dir P --task tN …`. Birbirinden bağımsız hazır görevleri farklı CLI'lara paralel ver; aynı projeye paralel yazanlara `--write --worktree` kullan. Uzun işleri arka planda başlatıp `watch` ile izle.
+5. **Doğrula:** İşçi bitince görev **doğrulanacak** olur. Sonucu kendin kontrol et (dosyaları oku, testleri çalıştır, worktree dalının farkına bak). Uygunsa `plan set tN --status done --note "<kanıt>"`. Değilse aynı işçiye `--continue` ile düzeltme ver, başka işçiye ver ya da `failed`/`blocked` olarak notla.
+6. **Tekrarla:** Tüm görevler bitene kadar 4–5. Sonunda kullanıcıya ne yapıldığını, hangi işçinin yaptığını, doğrulama kanıtını ve açık kalanları raporla.
+- Plan dosyası (`<proje>/.orkestra/plan.json`) tek doğruluk kaynağındır: bağlamın kaybolursa ya da yeni oturumda önce `plan show`.
+- Dal birleştirme, push, silme gibi geri dönüşü zor adımları kullanıcıya sormadan yapma.
+
+## Tek görev akışı
 1. **Proje yolu:** Kullanıcı yolu verdiyse onu `--dir` ile ver. Vermediyse sor; tahmin etme. İşçi o klasörde çalışır ve dosyaları orada görür.
 2. `status` çalıştır. `--probe`'u yalnızca etkinlik gerçekten belirsizse ya da kullanıcı isterse kullan.
 3. Aşağıdaki tablodan işçiyi seç; yalnızca kimliği olan işçileri kullan. Kendi CLI'ına görev verme (Codex içindeysen `codex`, Claude Code içindeysen `claude` gibi); kullanıcı açıkça isterse istisna.

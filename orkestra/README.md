@@ -2,12 +2,20 @@
 
 Bilgisayardaki AI CLI'larını işçi olarak yöneten orkestratör. Bağımlılık yok, Node ≥ 20.
 
+**Beyin ve el:** Planlayan, iş dağıtan ve doğrulayan **beyin**, SKILL.md'yi okuyan AI ajanıdır (konuştuğun model). orkestra onun **eli**: işçileri tanıtır (`profile`), planı saklar (`plan`), görevleri işçilere verir (`run`), izler (`runs`, `watch`) ve oturumları sürdürür (`--continue`). Hangi işin kime gideceğine orkestra değil beyin karar verir.
+
 ## Nasıl çağrılır
 Hiçbir skill klasörüne kurulmaz ve kendiliğinden devreye girmez. Herhangi bir projede, kullandığın AI ajanına (Claude Code, Codex, Copilot, agy, OpenCode…) şöyle yazman yeterli:
 
 > `F:\projeler\orkestrasyonum\orkestra\SKILL.md` dosyasını oku ve uygula. Proje: `D:\kodlar\uygulamam`. Görev: giriş sayfasındaki form doğrulamasını Codex'e incelet, dosya değiştirmesin.
 
 Ajan SKILL.md'yi okur, aracı aynı klasörde bulur ve işçiyi `--dir` ile verdiğin proje klasöründe çalıştırır.
+
+Bir uygulamayı baştan sona orkestrasyonla geliştirmek için:
+
+> `F:\projeler\orkestrasyonum\orkestra\SKILL.md` dosyasını oku ve uygula. Proje: `D:\kodlar\uygulamam`. Hedef: kullanıcı girişi olan bir not uygulaması. Önceliğim düşük maliyet.
+
+Ajan beyin olarak işçileri tanır, planı kurar, görevleri dağıtır, sonuçları doğrular ve planı günceller.
 
 Orkestra klasörü projenin dışında olduğu için ajan ilk seferde bu klasörü okumak ve `node` çalıştırmak için izin ister; onaylaman gerekir. Etkileşimsiz modda (`opencode run`, `claude -p` gibi) bu izin otomatik reddedilir; o modda ajanın ayarında `F:\projeler\orkestrasyonum\orkestra\*` için okuma izni tanımlı olmalı.
 
@@ -111,6 +119,28 @@ Makineye özel ayar bu klasördeki `orkestra.config.json` dosyasıdır (git'e gi
 ```
 - `models`: işçinin hızlı/normal/derin model katmanları.
 - `disabled`: **pasif** işçiler. Durumda "pasif" görünür, `--probe` ile test edilmez, `run` reddeder. Açmak için listeden çıkar.
+
+## İşçi profili (`profile`)
+Beynin karar vermesi için her işçinin durumu, yazabilip yazamadığı, oturum desteği, faturalaması, kısa notu ve çalışma geçmişinden başarı oranı ile ortalama süresi. Canlı test yapmaz, kredi harcamaz.
+
+```bash
+node bin/orkestra.mjs profile          # tablo
+node bin/orkestra.mjs profile --json   # beynin okuması için
+```
+
+## Plan (`plan`)
+Beynin kalıcı planı projede tutulur: `<proje>/.orkestra/plan.json`. Bağlam kaybolsa ya da oturum değişse bile süreç buradan devam eder.
+
+```bash
+node bin/orkestra.mjs plan init --dir P -- "Not uygulaması"
+node bin/orkestra.mjs plan add  --dir P --worker codex -- "API katmanını yaz"
+node bin/orkestra.mjs plan add  --dir P --depends t1 --note "testler geçmeli" -- "API testlerini yaz"
+node bin/orkestra.mjs plan show --dir P            # görevler, hazır olanlar, doğrulanacaklar
+node bin/orkestra.mjs run codex --dir P --write --task t1 -- "API katmanını yaz"
+node bin/orkestra.mjs plan set t1 --dir P --status done --note "testler geçti"
+```
+
+Görev durumları: `yapılacak` → `çalışıyor` → `doğrulanacak` → `bitti` (ya da `başarısız` / `engelli`). `run --task` görevi başlarken "çalışıyor", işçi başarıyla bitince **"doğrulanacak"** yapar; "bitti" kararı sonucu kontrol eden beyindedir. Paralel işçilerin plan güncellemeleri dosya kilidiyle sıraya girer. `.orkestra/` klasörünü projenin git'ine almak ya da `.gitignore`'a eklemek proje sahibinin tercihidir.
 
 ## Kimlik durumları
 `aktif`, `bağlı değil`, `anahtar süresi dolmuş`, `geçersiz anahtar`, `bakiye/kredi yok`, `abonelik/lisans yok`, `giriş gerekli`, `model desteklenmiyor`, `zaman aşımı`, `kurulu değil`.

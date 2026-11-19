@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { STATUS_TEXT } from '../src/classify.mjs';
 import { DEFAULT_EFFORT, DEFAULT_NEED, EFFORTS, NEEDS } from '../src/effort.mjs';
 import { assertCanWrite, resolveProjectDir, runWorker, selectModelAndEffort } from '../src/runner.mjs';
+import { addTask, initPlan, planPath, readPlan, readyTasks, setTask, updatePlan } from '../src/plan.mjs';
 import { createRun, listRuns, readRun } from '../src/runlog.mjs';
+import { buildProfiles, workerStats } from '../src/profile.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
 import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
 
@@ -61,6 +63,7 @@ function printStatus(rows) {
 
 // Çalışma listesinde "ok" bir işçinin aktif olduğunu değil, işin bittiğini anlatır.
 const stateText = (state) => ({ running: 'çalışıyor', lost: 'kayıp (süreç yok)', ok: 'bitti (başarılı)' }[state] ?? STATUS_TEXT[state] ?? state);
+const TASK_TEXT = { todo: 'yapılacak', doing: 'çalışıyor', review: 'doğrulanacak', done: 'bitti', failed: 'başarısız', blocked: 'engelli' };
 
 function ago(ms) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -115,6 +118,9 @@ async function main() {
     if (flags.worktree && !write) throw new Error('--worktree yalnızca --write ile kullanılır (salt okunur işçi zaten bir şey değiştirmez)');
     if (write) assertCanWrite(worker); // worktree ve çalışma kaydı açılmadan önce
     const projectDir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : prev?.dir ?? undefined);
+    // --task <görev>: çalışma projedeki plana bağlanır; plan ve görev, işçi başlamadan doğrulanır.
+    const taskId = typeof flags.task === 'string' ? flags.task : null;
+    if (taskId && !readPlan(projectDir).tasks.some((t) => t.id === taskId)) throw new Error(`bilinmeyen görev: ${taskId}`);
     // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
     const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;
     const choice = {
@@ -126,6 +132,12 @@ async function main() {
     const chosen = selectModelAndEffort(worker, choice);
     const log = createRun({ worker: worker.id, ...chosen, dir: projectDir, access: write ? 'yazma' : 'okuma', prompt });
     console.error(`[izleme] kimlik: ${log.id} · günlük: ${log.log}`);
+    const markTask = (patch) => {
+      if (!taskId) return;
+      updatePlan(projectDir, (p) => setTask(p, taskId, patch));
+      if (patch.status) console.error(`[plan] ${taskId} → ${TASK_TEXT[patch.status]}`);
+    };
+    markTask({ status: 'doing', worker: worker.id, run: log.id });
     const stream = flags.stream === true && !flags.json;
     let result;
     try {
@@ -141,6 +153,7 @@ async function main() {
     } catch (err) {
       if (wt) finalizeWorktree(wt, { message: `orkestra: ${worker.id} (yarım kaldı)` }); // kopya açıkta kalmasın
       log.finish({ status: 'error' });
+      markTask({ status: 'failed', note: err.message });
       throw err;
     }
     if (wt) {
@@ -150,6 +163,10 @@ async function main() {
     }
     result.runId = log.id;
     log.finish(result);
+    // İşçinin "tamam" demesi kanıt değil: başarılı iş "review" olur, beyin doğrulayınca "done" yapar.
+    markTask(result.status === 'ok'
+      ? { status: 'review', ...(result.worktree?.branch ? { branch: result.worktree.branch } : {}) }
+      : { status: 'failed', note: STATUS_TEXT[result.status] ?? result.status });
     if (result.sessionId) console.error(`[izleme] oturum: ${result.sessionId} · devam için: --continue ${log.id}`);
     if (flags.json) console.log(JSON.stringify(result, null, 2));
     else {
@@ -164,6 +181,65 @@ async function main() {
       }
     }
     process.exitCode = result.status === 'ok' ? 0 : 1;
+    return;
+  }
+
+  if (command === 'plan') {
+    const [sub, ...args] = rest;
+    const dir = resolveProjectDir(typeof flags.dir === 'string' ? flags.dir : undefined);
+    if (sub === 'init') {
+      const goal = args.join(' ').trim();
+      if (!goal) throw new Error('Hedef boş. Kullanım: orkestra plan init --dir <proje> -- "<hedef>"');
+      initPlan(dir, goal);
+      console.log(`plan oluşturuldu: ${planPath(dir)}`);
+      return;
+    }
+    if (sub === 'add') {
+      const task = updatePlan(dir, (p) => addTask(p, {
+        title: args.join(' '),
+        worker: typeof flags.worker === 'string' ? flags.worker : null,
+        depends: typeof flags.depends === 'string' ? flags.depends.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        note: typeof flags.note === 'string' ? flags.note : null,
+      }));
+      console.log(`${task.id} eklendi: ${task.title}`);
+      return;
+    }
+    if (sub === 'set') {
+      const task = updatePlan(dir, (p) => setTask(p, args[0], {
+        status: typeof flags.status === 'string' ? flags.status : undefined,
+        worker: typeof flags.worker === 'string' ? flags.worker : undefined,
+        note: typeof flags.note === 'string' ? flags.note : undefined,
+      }));
+      console.log(`${task.id} → ${TASK_TEXT[task.status]}`);
+      return;
+    }
+    if (sub === 'show' || sub === undefined) {
+      const plan = readPlan(dir);
+      const ready = readyTasks(plan);
+      if (flags.json) { console.log(JSON.stringify({ plan, ready }, null, 2)); return; }
+      console.log(`hedef: ${plan.goal}`);
+      if (!plan.tasks.length) { console.log('henüz görev yok'); return; }
+      printTable(['GÖREV', 'DURUM', 'İŞÇİ', 'BAĞIMLI', 'SON ÇALIŞMA', 'DAL', 'BAŞLIK'], plan.tasks.map((t) => [
+        t.id, TASK_TEXT[t.status], t.worker ?? '—', t.depends.join(',') || '—', t.runs.at(-1) ?? '—', t.branch ?? '—', t.title,
+      ]));
+      const count = (s) => plan.tasks.filter((t) => t.status === s).length;
+      console.log(`\nhazır: ${ready.map((t) => t.id).join(', ') || 'yok'} · doğrulanacak: ${count('review')} · bitti: ${count('done')}/${plan.tasks.length}`);
+      return;
+    }
+    throw new Error(`Bilinmeyen plan komutu: ${sub} (init | add | set | show)`);
+  }
+
+  if (command === 'profile') {
+    // Beyin için: yetenek, maliyet, durum ve geçmiş performans (canlı test yapılmaz, kredi harcanmaz).
+    const rows = await collectStatus({ only: typeof flags.only === 'string' ? flags.only.split(',') : undefined, context });
+    const profiles = buildProfiles({ rows, workers: context.workers, stats: workerStats(listRuns({ limit: Infinity })) });
+    if (flags.json) { console.log(JSON.stringify(profiles, null, 2)); return; }
+    printTable(['İŞÇİ', 'DURUM', 'YAZMA', 'OTURUM', 'FATURALAMA', 'GEÇMİŞ (başarılı/toplam · ort.)', 'NOT'], profiles.map((p) => [
+      p.id, p.state === 'unknown' ? 'hazır (test edilmedi)' : (STATUS_TEXT[p.state] ?? p.state),
+      p.canWrite ? 'evet' : 'hayır', p.session ? 'evet' : 'hayır', p.billing ?? '',
+      p.stats ? `${p.stats.ok}/${p.stats.runs}${p.stats.avgOkMs ? ` · ${ago(p.stats.avgOkMs)}` : ''}` : '—',
+      p.notes,
+    ]));
     return;
   }
 

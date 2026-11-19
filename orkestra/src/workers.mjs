@@ -36,6 +36,7 @@ function parseAgy(raw) {
 export const CLI_WORKERS = {
   claude: {
     label: 'Claude Code', cli: 'claude', billing: 'CLI aboneliği',
+    notes: 'Genel amaçlı: kod yazma, inceleme, plan, uzun bağlam',
     models: { fast: 'haiku', normal: 'sonnet', deep: 'opus' },
     access: { read: ['--permission-mode', 'plan'], write: ['--permission-mode', 'acceptEdits'] },
     session: { preset: true }, // yeni: --session-id <uuid>, devam: --resume <uuid>
@@ -47,6 +48,7 @@ export const CLI_WORKERS = {
   },
   codex: {
     label: 'Codex (ChatGPT)', cli: 'codex', billing: 'CLI aboneliği',
+    notes: 'Kod yazma, hata ayıklama, inceleme; yazma yalnızca proje klasörüne',
     models: { fast: 'gpt-5.6-luna', normal: 'gpt-6-luna', deep: 'gpt-6-luna' },
     // -s yerine -c sandbox_mode: "exec resume" -s kabul etmiyor; böylece okuma/yazma kuralı devamda da aynı kalır.
     access: { read: ['-c', 'sandbox_mode="read-only"'], write: ['-c', 'sandbox_mode="workspace-write"'] },
@@ -59,6 +61,7 @@ export const CLI_WORKERS = {
   },
   agy: {
     label: 'Antigravity (agy)', cli: 'agy', billing: 'CLI aboneliği', timeoutMs: 300_000,
+    notes: 'Gemini/Google modelleri; yalnızca okuma (inceleme, analiz, plan); açılışı 50-170 sn',
     models: { fast: null, normal: null, deep: null }, // agy kendi varsayılan modelini seçer
     // write: null → yalnızca okuma işçisi. accept-edits düzenlemeye izin veriyor ama agy düzenlerken komut da istiyor;
     // etkileşimsiz modda bu izin otomatik reddedilip iş boş bitiyor. Komut izinleri yalnızca tam komut metniyle
@@ -73,6 +76,7 @@ export const CLI_WORKERS = {
   },
   kimi: {
     label: 'Kimi Code CLI', cli: 'kimi', billing: 'CLI ayarına bağlı (Moonshot API ya da Kimi aboneliği)',
+    notes: 'Kimi modelleri; oturum devamı yok; yazma modu rutin komutları da çalıştırır',
     models: { fast: null, normal: null, deep: null }, // null → config.toml'daki default_model
     // Kimi'de yalnızca-düzenleme modu yok; --yolo rutin düzenleme ve komutları çalıştırır, riskli işleri yine sorar.
     access: { read: ['--plan'], write: ['--yolo'] },
@@ -82,6 +86,7 @@ export const CLI_WORKERS = {
   },
   copilot: {
     label: 'GitHub Copilot CLI', cli: 'copilot', billing: 'CLI aboneliği (AI kredisi)',
+    notes: 'GitHub bağlamı; her çağrı AI kredisi harcar; okuma modu yavaş olabilir',
     models: { fast: null, normal: null, deep: null }, // null → Copilot kendisi seçer
     access: { read: ['--deny-tool=write'], write: ['--allow-tool=write'] },
     session: { preset: true }, // --session-id hem yeni oturumun kimliğini belirler hem devam ettirir
@@ -155,14 +160,17 @@ export function buildWorkers({ catalog = {}, auth = {}, env = process.env, overr
   // OpenCode'un kendi modelleri, faturalama türüne göre üç ayrı işçi.
   const own = chatModels(catalog.opencode);
   const defs = [
-    ['opencode-go', 'opencode-go', 'OpenCode Go', 'abonelik', chatModels(catalog['opencode-go']).filter((m) => !m.free)],
-    ['opencode-zen', 'opencode', 'OpenCode Zen', 'token (kredi)', own.filter((m) => !m.free)],
-    ['opencode-free', 'opencode', 'OpenCode ücretsiz', 'ücretsiz', own.filter((m) => m.free)],
+    ['opencode-go', 'opencode-go', 'OpenCode Go', 'abonelik', chatModels(catalog['opencode-go']).filter((m) => !m.free),
+      'Abonelikle Kimi, MiMo, MiniMax, Qwen, GLM, DeepSeek modelleri'],
+    ['opencode-zen', 'opencode', 'OpenCode Zen', 'token (kredi)', own.filter((m) => !m.free),
+      'Zen\'in ücretli modelleri; kredi gerekir'],
+    ['opencode-free', 'opencode', 'OpenCode ücretsiz', 'ücretsiz', own.filter((m) => m.free),
+      'Zen\'in sınırlı ücretsiz modelleri; basit işler ve denemeler'],
   ];
-  for (const [id, provider, label, billing, models] of defs) {
+  for (const [id, provider, label, billing, models, notes] of defs) {
     const ids = models.map((m) => m.id);
     workers[id] = {
-      id, kind: 'opencode', cli: 'opencode', provider, label, billing,
+      id, kind: 'opencode', cli: 'opencode', provider, label, billing, notes,
       authProvider: provider, availableModels: ids,
       models: tiersFor(id, ids, overrides[id]),
       access: OPENCODE_ACCESS,
@@ -186,7 +194,8 @@ export function buildWorkers({ catalog = {}, auth = {}, env = process.env, overr
     const id = `opencode:${provider}`;
     workers[id] = {
       id, kind: 'opencode-connect', cli: 'opencode', provider, label: info.name,
-      billing: billingOf(info), authProvider: provider, availableModels: modelIds,
+      billing: billingOf(info), notes: `${info.name} modelleri (OpenCode /connect ile)`,
+      authProvider: provider, availableModels: modelIds,
       models: tiersFor(provider, modelIds, overrides[id]),
       access: OPENCODE_ACCESS,
       session: { preset: false }, // kimlik JSON olaylarındaki sessionID
