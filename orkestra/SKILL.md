@@ -43,6 +43,7 @@ Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştiril
 2. **Git ve çalışma dalı:** İşler `main`'de değil, bir çalışma dalında yürür.
    - Proje git deposu değilse (`git -C P rev-parse --is-inside-work-tree` başarısız): kullanıcıya sorup `git init`, `.orkestra/` satırını `.gitignore`'a ekle ve mevcut dosyalarla ilk commit'i at. Dosyaları commit'e katacağın için onaysız yapma.
    - Depo var ama hiç commit yoksa: ilk commit'i yine kullanıcıya sorarak at (`--worktree` en az bir commit ister).
+   - Depo var ve `.orkestra/` yoksayılmıyorsa (`git -C P check-ignore -q .orkestra/` başarısız): plan dosyası yanlışlıkla commit'e girebilir. Kullanıcıya `.gitignore`'a eklemeyi öner; kabul ederse ekleyip commit et, istemezse olduğu gibi bırak.
    - `main`/`master` üzerindeysen: önce commit edilmemiş değişiklik var mı bak (`git status --short`); varsa ne yapılacağını kullanıcıya sor. Sonra `orkestra-hedef/<hedefin-kısa-adı>` dalı aç ve ona geç (`git -C P switch -c …`). Böyle bir dal zaten varsa (kaldığın yerden devam) yenisini açma, ona geç.
    - Başka bir daldaysan o dal kullanıcının seçimidir; olduğu gibi kullan.
    - Tüm `--write` işleri ve worktree dallarının birleştirilmesi bu çalışma dalında yapılır. Çalışma dalını `main`'e birleştirmek yalnızca kullanıcının açık onayıyla olur.
