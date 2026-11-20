@@ -116,6 +116,11 @@ test('sınıflandırma: işçinin araç çıktısındaki kimlik hatası benzeri 
   assert.equal(ocErr.status, 'expired_key', 'metinden sonra gelen hata olayı kaybolmamalı');
 });
 
+test('sınıflandırma: başarılı cevapta anlatılan HTTP 401 işçiyi "geçersiz anahtar" saymaz', async () => {
+  const r = await runWorker(workers.codex, { prompt: 'p', env: envWith('codex-answer-401'), resolve: fakeResolve });
+  assert.equal(r.status, 'ok');
+});
+
 test('çalıştırma: zaman aşımı süreci öldürür', async () => {
   const r = await runWorker(workers.agy, { prompt: 'p', env: envWith('sleep'), resolve: fakeResolve, timeoutMs: 1500 });
   assert.equal(r.status, 'timeout');

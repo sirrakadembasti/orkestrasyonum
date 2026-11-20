@@ -34,6 +34,13 @@ function killTree(child) {
   }
 }
 
+// Başarılı çıkışta cevabın sınıflandırılacak kısmı. CLI'ların kimlik hata mesajları kısadır; uzun bir cevap ise
+// işçinin işini anlatır ("yanıtın 401 olmasını doğruladım" gibi) ve yalnızca "Error:" satırları taranır.
+function errorPart(text) {
+  if (text.length <= 200) return text;
+  return text.split('\n').filter((line) => /^\s*Error:/.test(line)).join('\n');
+}
+
 // Yazma modu tanımlı olmayan (write: null) işçiler yalnızca okuma işi alabilir.
 export function assertCanWrite(worker) {
   if (worker.access?.write === null) {
@@ -78,7 +85,7 @@ export async function runWorker(worker, {
       const parsed = (worker.parse ?? ((r) => ({ text: r, sessionId: null, denied: false })))(raw, { stdout: stripAnsi(stdout).trim() });
       // Başarılı çıkışta yalnızca işçinin cevabı taranır: ham döküm işçinin çalıştırdığı komutların çıktısını da
       // içerir ("UnauthorizedAccess", "401" gibi) ve işçiyi yanlışlıkla kimlik hatasıyla işaretler.
-      let status = classify({ output: exitCode === 0 ? parsed.text : raw, exitCode, timedOut });
+      let status = classify({ output: exitCode === 0 ? errorPart(parsed.text) : raw, exitCode, timedOut });
       if (status === 'ok' && parsed.denied) status = 'permission_denied';
       done({
         ...base, status, exitCode, output: parsed.text.trim(), durationMs: Date.now() - started,

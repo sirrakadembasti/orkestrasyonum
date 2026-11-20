@@ -44,6 +44,14 @@ if (mode === 'echo') {
   // OpenCode: araç çıktısında kimlik hatasına benzeyen metin, işçinin cevabı ayrı.
   console.log(JSON.stringify({ type: 'tool_use', sessionID: 'ses_x', part: { state: { output: 'Error: 401 Unauthorized (projenin kendi API testi)' } } }));
   console.log(JSON.stringify({ type: 'text', sessionID: 'ses_x', part: { type: 'text', text: 'Testler geçti.' } }));
+} else if (mode === 'codex-answer-401') {
+  // Başarılı Codex cevabı, yazdığı kodun HTTP 401 davranışını anlatıyor (kimlik hatası değil).
+  console.error('session id: 11111111-2222-4333-8444-555555555555');
+  console.log([
+    'Yedi düzeltmenin tamamını uyguladım; yalnızca izin verilen dosyaları değiştirdim.',
+    'Oturum yoksa `/api/me` yanıtının 401 olmasını ve Unauthorized durumunda giriş ekranına dönülmesini testlerle doğruladım.',
+    '`npm test` sonucu 22 test geçti, 0 başarısız.',
+  ].join('\n'));
 } else if (mode === 'opencode-text-then-error') {
   console.log(JSON.stringify({ type: 'text', sessionID: 'ses_x', part: { type: 'text', text: 'Başlıyorum' } }));
   console.log(JSON.stringify({ type: 'error', sessionID: 'ses_x', error: { data: { message: 'This API key has expired.' } } }));
