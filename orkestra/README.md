@@ -1,6 +1,6 @@
 # orkestra
 
-Bilgisayardaki AI CLI'larını işçi olarak yöneten orkestratör. Bağımlılık yok, Node ≥ 20.
+Bilgisayardaki AI CLI'larını işçi olarak yöneten orkestratör. Bağımlılık yok, Node ≥ 22.
 
 **Beyin ve el:** Planlayan, iş dağıtan ve doğrulayan **beyin**, SKILL.md'yi okuyan AI ajanıdır (konuştuğun model). orkestra onun **eli**: işçileri tanıtır (`profile`), planı saklar (`plan`), görevleri işçilere verir (`run`), izler (`runs`, `watch`) ve oturumları sürdürür (`--continue`). Hangi işin kime gideceğine orkestra değil beyin karar verir.
 

@@ -8,5 +8,5 @@
     "test": "node --test \"test/*.test.mjs\"",
     "status": "node bin/orkestra.mjs status"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=22" }
 }

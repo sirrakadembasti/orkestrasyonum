@@ -18,7 +18,7 @@ Araç, **bu SKILL.md dosyasının bulunduğu klasördeki** `bin/orkestra.mjs` do
 O='node F:/projeler/orkestrasyonum/orkestra/bin/orkestra.mjs'
 ```
 
-SKILL.md başka bir yerden okunduysa yolu ona göre değiştir. Node ≥ 20 gerekir.
+SKILL.md başka bir yerden okunduysa yolu ona göre değiştir. Node ≥ 22 gerekir.
 
 ## Komutlar
 ```bash
