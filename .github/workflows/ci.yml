@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    # Komut satırı testlerinin bir kısmı Windows .cmd kabuklarını kullanıyor; araç da Windows'ta çalışıyor.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: orkestra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Test betiğindeki "test/*.test.mjs" joker karakteri Node 21+ ister; yerelde de Node 22 kullanılıyor.
+          node-version: 22
+      # Worktree testleri geçici depolarda commit atıyor.
+      - run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@example.invalid"
+      - run: npm test
