@@ -17,6 +17,8 @@ Bir uygulamayı baştan sona orkestrasyonla geliştirmek için:
 
 Ajan beyin olarak işçileri tanır, planı kurar, görevleri dağıtır, sonuçları doğrular ve planı günceller.
 
+İşler `main`'de değil, bir çalışma dalında yürür. Proje git deposu değilse ajan sana sorup `git init` yapar, `.orkestra/`'yı `.gitignore`'a ekler ve ilk commit'i atar. `main` üzerindeyse `orkestra-hedef/<hedef>` dalını açar; işçilerin yazdıkları ve worktree dalları bu dala birleşir. Çalışma dalı `main`'e yalnızca senin onayınla birleşir.
+
 Orkestra klasörü projenin dışında olduğu için ajan ilk seferde bu klasörü okumak ve `node` çalıştırmak için izin ister; onaylaman gerekir. Etkileşimsiz modda (`opencode run`, `claude -p` gibi) bu izin otomatik reddedilir; o modda ajanın ayarında `F:\projeler\orkestrasyonum\orkestra\*` için okuma izni tanımlı olmalı.
 
 ## İşçiler
