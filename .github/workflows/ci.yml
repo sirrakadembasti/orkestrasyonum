@@ -16,7 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Test betiğindeki "test/*.test.mjs" joker karakteri Node 21+ ister; yerelde de Node 22 kullanılıyor.
+          node-version: 22
       # Worktree testleri geçici depolarda commit atıyor.
       - run: |
           git config --global user.name "ci"
