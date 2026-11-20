@@ -14,6 +14,9 @@ import { buildProfiles, verdictStats, workerStats } from '../src/profile.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
 import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
 
+// Değer almayan bayraklar; diğerleri sonraki argümanı "--" ile başlasa bile değer olarak alır ("--note '--force kullanma'").
+const BOOLEAN_FLAGS = new Set(['write', 'worktree', 'stream', 'json', 'probe']);
+
 function parseArgs(argv) {
   const flags = {};
   const rest = [];
@@ -23,7 +26,7 @@ function parseArgs(argv) {
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith('--')) flags[key] = true;
+      if (BOOLEAN_FLAGS.has(key) || next === undefined || next === '--') flags[key] = true;
       else { flags[key] = next; i++; }
     } else rest.push(a);
   }

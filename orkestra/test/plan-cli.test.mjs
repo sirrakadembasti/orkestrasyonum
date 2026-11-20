@@ -51,6 +51,19 @@ test('komut satırı: plan init, add, set ve show', winOnly, () => {
   assert.match(cli('ok', 'plan', 'init', '--dir', dir, '--', 'x').stderr, /plan zaten var/);
 });
 
+test('komut satırı: tire ile başlayan not sessizce kaybolmaz', () => {
+  const { dir, cli } = setup();
+  cli('ok', 'plan', 'init', '--dir', dir, '--', 'Hedef');
+  cli('ok', 'plan', 'add', '--dir', dir, '--note', '--force kullanma', '--', 'Görev');
+  const set = cli('ok', 'plan', 'set', 't1', '--dir', dir, '--note', '- testler geçti', '--status', 'done');
+  assert.equal(set.status, 0, set.stderr);
+  const set2 = cli('ok', 'plan', 'set', 't1', '--dir', dir, '--note', '-- iki tire');
+  assert.equal(set2.status, 0, set2.stderr);
+  const task = readPlan(dir).tasks[0];
+  assert.equal(task.status, 'done');
+  assert.deepEqual(task.notes, ['--force kullanma', '- testler geçti', '-- iki tire']);
+});
+
 test('komut satırı: run --task görevi başlatır, işçi bitince "doğrulanacak" yapar', winOnly, () => {
   const { dir, cli } = setup();
   cli('ok', 'plan', 'init', '--dir', dir, '--', 'hedef');
