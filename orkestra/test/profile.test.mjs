@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildProfiles, workerStats } from '../src/profile.mjs';
+import { buildProfiles, verdictStats, workerStats } from '../src/profile.mjs';
+import { addTask, initPlan, setTask, updatePlan } from '../src/plan.mjs';
 import { createRun } from '../src/runlog.mjs';
 import { buildWorkers } from '../src/workers.mjs';
 import { CATALOG } from './helpers.mjs';
@@ -25,6 +26,28 @@ test('istatistik: işçi başına çalışma sayısı, başarı oranı, ortalama
   assert.deepEqual(s.agy, { runs: 1, ok: 0, successRate: 0, avgOkMs: null, lastStatus: 'permission_denied', lastAt: '2026-11-19T09:00:00Z' });
   assert.equal(s.claude.runs, 0, 'süren çalışma istatistiğe girmez');
   assert.equal(workerStats([]).codex, undefined);
+});
+
+test('doğrulama: başarı plandaki beyin kararından sayılır, işçinin çıkış durumundan değil', () => {
+  const runs = [
+    { id: 'r1', worker: 'codex', status: 'timeout' },          // işçi düştü ama beyin dalı doğrulayıp "bitti" dedi
+    { id: 'r2', worker: 'opencode-free', status: 'ok' },
+    { id: 'r3', worker: 'codex', status: 'ok' },               // aynı görev başka işçiye geçti: son çalışma sayılır
+    { id: 'r4', worker: 'agy', status: 'ok' },
+  ];
+  const plan = { tasks: [
+    { id: 't1', worker: 'codex', status: 'done', runs: ['r1'] },
+    { id: 't2', worker: 'codex', status: 'done', runs: ['r2', 'r3'] },
+    { id: 't3', worker: 'opencode-free', status: 'failed', runs: ['r2'] },
+    { id: 't4', worker: 'agy', status: 'review', runs: ['r4'] },   // karar bekliyor: sayılmaz
+    { id: 't5', worker: 'codex', status: 'done', runs: [] },       // işçiye gitmemiş: sayılmaz
+    { id: 't6', worker: 'agy', status: 'blocked', runs: ['r4'] },  // engel işçinin sonucu değil: sayılmaz
+  ] };
+  assert.deepEqual(verdictStats({ plans: [plan], runs }), {
+    codex: { verified: 2, closed: 2 },
+    'opencode-free': { verified: 0, closed: 1 },
+  });
+  assert.deepEqual(verdictStats({ plans: [], runs }), {});
 });
 
 test('profil: beynin karar vermesi için yetenek, maliyet, durum ve geçmiş bir arada', () => {
@@ -61,4 +84,25 @@ test('komut satırı: profile --json çalışma geçmişini işçilere bağlar',
   assert.equal(codex.stats.runs, 3);
   assert.equal(codex.stats.ok, 2);
   assert.equal(codex.state, 'not_installed', 'boş PATH: kurulu görünmez, gerçek CLI çağrılmaz');
+  assert.equal(codex.verdicts, null, 'planı olmayan çalışmalarda doğrulama bilgisi yok');
+});
+
+test('komut satırı: profile, çalışmaların proje klasörlerindeki planlardan doğrulamaları okur', () => {
+  const home = mkdtempSync(join(tmpdir(), 'orkestra-home-'));
+  const root = join(home, 'runs');
+  const dir = mkdtempSync(join(tmpdir(), 'orkestra-proje-'));
+  initPlan(dir, 'hedef');
+  for (const status of ['timeout', 'ok']) {
+    const r = createRun({ worker: 'codex', prompt: 'x', dir }, { root });
+    r.finish({ status, durationMs: 1000 });
+    updatePlan(dir, (p) => { const t = addTask(p, { title: status }); setTask(p, t.id, { run: r.id, status: 'done' }); });
+  }
+  createRun({ worker: 'codex', prompt: 'x', dir: join(dir, 'silinmis') }, { root }).finish({ status: 'ok' }); // planı olmayan klasör
+  const res = spawnSync(process.execPath, [BIN, 'profile', '--json'], {
+    encoding: 'utf8', env: { ...process.env, PATH: '', Path: '', ORKESTRA_HOME: home },
+  });
+  assert.equal(res.status, 0, res.stderr);
+  const codex = JSON.parse(res.stdout).find((r) => r.id === 'codex');
+  assert.deepEqual(codex.verdicts, { verified: 2, closed: 2 });
+  assert.equal(codex.stats.ok, 2, 'çıkış istatistiği ayrıca durur');
 });

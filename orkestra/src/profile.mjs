@@ -18,7 +18,24 @@ export function workerStats(runs) {
   }]));
 }
 
-export function buildProfiles({ rows, workers, stats }) {
+// Beynin kararı: işçinin çıkış durumu yanıltabilir (zaman aşımına düşen işçinin işi tamam olabilir).
+// Kapanan görev = "done" ya da "failed"; işçiye, görevin son çalışmasının işçisi sayılır.
+// İşçiye gitmemiş, karar bekleyen ya da engellenen görevler sayılmaz.
+export function verdictStats({ plans, runs }) {
+  const workerOf = new Map(runs.map((r) => [r.id, r.worker]));
+  const stats = {};
+  for (const task of plans.flatMap((p) => p.tasks)) {
+    if (task.status !== 'done' && task.status !== 'failed') continue;
+    const worker = workerOf.get(task.runs.at(-1));
+    if (!worker) continue;
+    stats[worker] ??= { verified: 0, closed: 0 };
+    stats[worker].closed++;
+    if (task.status === 'done') stats[worker].verified++;
+  }
+  return stats;
+}
+
+export function buildProfiles({ rows, workers, stats, verdicts = {} }) {
   return rows.map((row) => {
     const w = workers[row.id];
     return {
@@ -28,6 +45,7 @@ export function buildProfiles({ rows, workers, stats }) {
       notes: w.notes ?? '',
       models: w.models,
       stats: stats[row.id] ?? null,
+      verdicts: verdicts[row.id] ?? null,
     };
   });
 }

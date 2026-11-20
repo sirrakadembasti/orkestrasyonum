@@ -10,7 +10,7 @@ import { DEFAULT_EFFORT, DEFAULT_NEED, EFFORTS, NEEDS } from '../src/effort.mjs'
 import { assertCanWrite, resolveProjectDir, runWorker, selectModelAndEffort } from '../src/runner.mjs';
 import { addTask, initPlan, planPath, readPlan, readyTasks, setTask, updatePlan } from '../src/plan.mjs';
 import { createRun, listRuns, readRun } from '../src/runlog.mjs';
-import { buildProfiles, workerStats } from '../src/profile.mjs';
+import { buildProfiles, verdictStats, workerStats } from '../src/profile.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
 import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
 
@@ -234,11 +234,16 @@ async function main() {
   if (command === 'profile') {
     // Beyin için: yetenek, maliyet, durum ve geçmiş performans (canlı test yapılmaz, kredi harcanmaz).
     const rows = await collectStatus({ only: typeof flags.only === 'string' ? flags.only.split(',') : undefined, context });
-    const profiles = buildProfiles({ rows, workers: context.workers, stats: workerStats(listRuns({ limit: Infinity })) });
+    const runs = listRuns({ limit: Infinity });
+    // Beynin kararları, çalışmaların yapıldığı projelerdeki planlarda.
+    const plans = [...new Set(runs.map((r) => r.dir).filter(Boolean))]
+      .filter((dir) => existsSync(planPath(dir))).map((dir) => { try { return readPlan(dir); } catch { return null; } }).filter(Boolean);
+    const profiles = buildProfiles({ rows, workers: context.workers, stats: workerStats(runs), verdicts: verdictStats({ plans, runs }) });
     if (flags.json) { console.log(JSON.stringify(profiles, null, 2)); return; }
-    printTable(['İŞÇİ', 'DURUM', 'YAZMA', 'OTURUM', 'FATURALAMA', 'GEÇMİŞ (başarılı/toplam · ort.)', 'NOT'], profiles.map((p) => [
+    printTable(['İŞÇİ', 'DURUM', 'YAZMA', 'OTURUM', 'FATURALAMA', 'DOĞRULANAN (bitti/kapanan)', 'ÇIKIŞ (başarılı/toplam · ort.)', 'NOT'], profiles.map((p) => [
       p.id, p.state === 'unknown' ? 'hazır (test edilmedi)' : (STATUS_TEXT[p.state] ?? p.state),
       p.canWrite ? 'evet' : 'hayır', p.session ? 'evet' : 'hayır', p.billing ?? '',
+      p.verdicts ? `${p.verdicts.verified}/${p.verdicts.closed}` : '—',
       p.stats ? `${p.stats.ok}/${p.stats.runs}${p.stats.avgOkMs ? ` · ${ago(p.stats.avgOkMs)}` : ''}` : '—',
       p.notes,
     ]));

@@ -121,7 +121,9 @@ Makineye özel ayar bu klasördeki `orkestra.config.json` dosyasıdır (git'e gi
 - `disabled`: **pasif** işçiler. Durumda "pasif" görünür, `--probe` ile test edilmez, `run` reddeder. Açmak için listeden çıkar.
 
 ## İşçi profili (`profile`)
-Beynin karar vermesi için her işçinin durumu, yazabilip yazamadığı, oturum desteği, faturalaması, kısa notu ve çalışma geçmişinden başarı oranı ile ortalama süresi. Canlı test yapmaz, kredi harcamaz.
+Beynin karar vermesi için her işçinin durumu, yazabilip yazamadığı, oturum desteği, faturalaması, kısa notu ve geçmişi. Canlı test yapmaz, kredi harcamaz. Geçmiş iki ayrı sütundur:
+- **DOĞRULANAN (bitti/kapanan):** beynin kararı. Çalışmaların yapıldığı projelerdeki planlardan okunur; "bitti" ya da "başarısız" kapanmış görevler, görevin son çalışmasının işçisine sayılır.
+- **ÇIKIŞ (başarılı/toplam · ort.):** işçinin nasıl bittiği. Zaman aşımına düşen ya da bağlantısı kopan işçinin işi yine de tamam olabilir; pilotta opencode-free'nin çıkışı 1/3, doğrulananı 3/3'tü.
 
 ```bash
 node bin/orkestra.mjs profile          # tablo
