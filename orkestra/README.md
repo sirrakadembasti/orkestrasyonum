@@ -102,7 +102,7 @@ node bin/orkestra.mjs run codex --continue codex-20261118-101500-a1b2 -- "en kri
 | agy | `--output-format json` sonucundaki `conversation_id` | `--conversation <kimlik>` |
 | kimi | — desteklenmiyor | — |
 
-Devam, önceki çalışmanın işçisiyle ve klasöründe yapılır; okuma/yazma modu her çağrıda ayrıca verilir. OpenCode ve agy JSON biçiminde çalıştırılır; orkestra metni ve hata mesajlarını JSON'dan çıkarır (`--stream` ham JSON olaylarını gösterir). agy bir izin reddi yüzünden boş dönerse durum `izin reddedildi` olur.
+Devam, önceki çalışmanın işçisiyle ve klasöründe yapılır; okuma/yazma modu her çağrıda ayrıca verilir. Önceki çalışma `--worktree` ile yapıldıysa ve devam da işçinin dalında olsun istiyorsan `--write --worktree` ekle (bkz. Paralel yazma). OpenCode ve agy JSON biçiminde çalıştırılır; orkestra metni ve hata mesajlarını JSON'dan çıkarır (`--stream` ham JSON olaylarını gösterir). agy bir izin reddi yüzünden boş dönerse durum `izin reddedildi` olur.
 
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede aynı anda yazacaksa `--write --worktree` kullan (proje git deposu olmalı):
@@ -118,6 +118,14 @@ Her işçi kendi dalında (`orkestra/<işçi>-<zaman>`) ve ayrı bir kopyada ça
 ```bash
 git -C "D:/kodlar/uygulamam" merge --no-ff orkestra/codex-20261118-101500-a1b2
 ```
+
+Worktree işçisine aynı oturumda düzeltme vermek için `--continue` ile `--worktree` birlikte kullanılır:
+
+```bash
+node bin/orkestra.mjs run codex --continue codex-20261118-101500-a1b2 --write --worktree -- "testteki hatayı düzelt"
+```
+
+İşçinin dalı önceki kopyanın **aynı yolunda** yeniden açılır (bazı CLI'ların oturumu klasöre bağlıdır), değişiklik o dala yeni commit olarak eklenir ve kopya yine silinir. Değişiklik yoksa dal korunur; önceki çalışma hiçbir şey değiştirmediği için dal silinmişse aynı adla güncel HEAD'den açılır. Dal başka bir yerde checkout edilmişse ya da önceki çalışma worktree'de değilse komut reddedilir.
 
 Makineye özel ayar bu klasördeki `orkestra.config.json` dosyasıdır (git'e girmez):
 ```json

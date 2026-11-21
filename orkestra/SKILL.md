@@ -64,7 +64,7 @@ Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştiril
    - Plan varsa `plan show` ile kaldığın yerden devam et; yoksa `plan init`. Görevleri `plan add --note "G-2.1, G-2.3"` ile kabul ölçütlerine bağla; bağımlılıkları `--depends` ile yaz. `tasks.md`'yi kullanıcıya göster.
 6. **Uygula:** `plan show`'daki **hazır** görevleri başlat: `run <işçi> --dir P --task tN …`. Prompt'a görevi, karşılayacağı kabul ölçütlerinin **tam metnini**, okuması gereken spec dosyalarının yollarını ve dokunabileceği dosyaları yaz; her kabul ölçütü için önce test yazmasını iste. Birbirinden bağımsız görevleri farklı CLI'lara paralel ver; aynı projeye paralel yazanlara `--write --worktree` kullan. Uzun işleri arka planda başlatıp `watch` ile izle.
    - Dosya sınırı koyarken bağlı kayıtları unutma: işçi yeni bir dosya eklerse onu tanıtan yerleri de (statik dosya izin listesi, yönlendirme, dışa aktarma dizini, `package.json` betikleri) güncelleyebilmeli. Aksi hâlde testler geçer ama uygulama açılmaz.
-   - `--continue` ile `--worktree` birlikte kullanılamaz: devam eden oturum ana klasörde yazar. Paralel görevleri planlarken birini devam oturumuyla ana klasörde, diğerini yeni oturumla worktree'de çalıştır; ikisinin aynı dosyalara dokunduğu yerlerde birleştirme çakışmasını sen çözersin.
+   - Worktree'de çalışmış bir işçiye düzeltme verirken `--continue <kimlik> --write --worktree` kullan: oturum işçinin kendi dalında sürer, düzeltme o dala yeni commit olur; dalı daha önce birleştirdiysen yeniden birleştir. `--worktree` verilmezse devam ana klasörde yazar.
 7. **Doğrula — ölçüt ölçüt:** İşçi bitince görev **doğrulanacak** olur. İşçinin "testler geçti" raporu kanıt değildir.
    - Dalı birleştirdikten sonra testleri **kendin** çalıştır: işçinin kopyasında başka görevlerin dosyaları yoktu, birleşince kırılabilir.
    - Görevin her kabul ölçütünü tek tek kanıtla: otomatik test ve uygulamayı gerçekten çalıştırıp tarayıcıda/terminalde senaryo. Senaryoyu yalnızca kurallara uyan girdilerle değil, gerçek bir kullanıcının yazacağı girdilerle de dene: yanlış, boş, kısa, uzun, Türkçe karakterli, boşluklu.
@@ -101,7 +101,8 @@ Her `run` başlarken stderr'e `[izleme] kimlik: <kimlik>` yazar; işçinin çık
 - Devam aynı işçiyle ve önceki çalışmanın proje klasöründe yapılır (`--dir` verilirse o kullanılır). Farklı bir işçiyle devam reddedilir.
 - Devam prompt'unda bağlamı yeniden anlatma; yalnızca yeni isteği yaz ("az önce yazdığın fonksiyona test ekle").
 - Okuma/yazma modu her çağrıda ayrıca verilir: önceki çalışma `--write` olsa bile devam varsayılan olarak salt okunurdur.
-- Desteklenmeyenler: `kimi` (kimlikle devam yok) ve `--worktree` ile birlikte kullanım (önceki kopya silinmiştir).
+- `--worktree` ile devam: önceki çalışma worktree'deyse `--write --worktree` ekle. İşçinin dalı (`orkestra/<işçi>-<zaman>`) aynı geçici yolda yeniden açılır, değişiklik o dala yeni commit olur; değişiklik yoksa dal korunur. Dal başka bir yerde checkout edilmişse (ör. ana klasörde o dala geçtiysen) reddedilir. Önceki çalışma ana klasördeyse `--worktree` ile devam reddedilir.
+- Desteklenmeyen: `kimi` (kimlikle devam yok).
 
 ## Paralel yazma (`--worktree`)
 Birden fazla işçi aynı projede **aynı anda** dosya yazacaksa her birine `--write --worktree` ver. Proje bir git deposu olmalı ve en az bir commit içermeli.

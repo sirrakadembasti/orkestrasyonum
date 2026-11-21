@@ -30,6 +30,11 @@ if (mode === 'echo') {
   await new Promise((r) => setTimeout(r, 300));
   writeFileSync(process.env.FAKE_FILE ?? 'isci.txt', process.env.FAKE_CONTENT ?? 'merhaba\n');
   console.log('yazdım');
+} else if (mode === 'write-session') {
+  // Dosya yazan ve Codex gibi oturum kimliği veren işçi; çalıştığı klasörü de bildirir.
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(process.env.FAKE_FILE ?? 'isci.txt', process.env.FAKE_CONTENT ?? 'merhaba\n');
+  console.log(`session id: 11111111-2222-4333-8444-555555555555\ncwd: ${process.cwd()}`);
 } else if (mode === 'write-fail') {
   // Dosyayı yazıp sonra bağlantı hatasıyla düşen işçi (iş yarım ya da tamam olabilir).
   const { writeFileSync } = await import('node:fs');

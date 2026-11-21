@@ -123,3 +123,44 @@ test('komut satırı: bilinmeyen görev ya da plan yoksa işçi başlatılmaz', 
   assert.match(unknown.stderr, /bilinmeyen görev: t5/);
   assert.doesNotMatch(unknown.stderr, /\[izleme\]/);
 });
+
+// --continue + --worktree: devam oturumu işçinin dalında, aynı geçici yolda sürer (G-1, G-2, G-5, G-6).
+test('komut satırı: worktree çalışmasının devamı aynı dalda ve aynı yolda yapılır', winOnly, () => {
+  const gitDir = dirname(spawnSync('where', ['git'], { encoding: 'utf8' }).stdout.split(/\r?\n/)[0]);
+  const { dir, cli } = setup({ extraPath: `;${gitDir}` });
+  const git = (...a) => spawnSync('git', ['-C', dir, ...a], { encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'a.txt'), 'a\n');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'ilk');
+  cli('ok', 'plan', 'init', '--dir', dir, '--', 'hedef');
+  cli('ok', 'plan', 'add', '--dir', dir, '--', 'iş');
+  process.env.FAKE_FILE = 'bir.txt';
+  const first = cli('write-session', 'run', 'codex', '--dir', dir, '--write', '--worktree', '--task', 't1', '--', 'ilk');
+  assert.equal(first.status, 0, first.stderr);
+  const id = first.stderr.match(/\[izleme\] kimlik: (\S+)/)[1];
+  const branch = first.stderr.match(/\[worktree\] dal: (\S+)/)[1];
+  const cwd1 = first.stdout.match(/cwd: (.+)/)[1].trim();
+
+  process.env.FAKE_FILE = 'iki.txt';
+  const next = cli('write-session', 'run', 'codex', '--continue', id, '--write', '--worktree', '--task', 't1', '--', 'devam');
+  delete process.env.FAKE_FILE;
+  assert.equal(next.status, 0, next.stderr);
+  assert.equal(next.stdout.match(/cwd: (.+)/)[1].trim(), cwd1, 'oturum aynı yolda sürer');
+  assert.ok(next.stderr.includes(`[worktree] dal: ${branch} `), 'aynı dal bildirilir');
+  assert.match(next.stderr, /birleştirmek için: git -C .* merge --no-ff orkestra\//);
+  assert.equal(git('show', `${branch}:bir.txt`).status, 0);
+  assert.equal(git('show', `${branch}:iki.txt`).status, 0, 'yeni değişiklik aynı dalda');
+  assert.equal(git('rev-list', '--count', `main..${branch}`).stdout.trim(), '2', 'iki commit');
+  assert.equal(git('status', '--porcelain').stdout.split('\n').filter((l) => l && !l.includes('.orkestra')).length, 0, 'ana klasör temiz');
+  assert.equal(readPlan(dir).tasks[0].branch, branch, 'plan aynı dalı yazar');
+
+  // G-5: dal ana klasörde checkout ise reddedilir, görev değişmez.
+  git('switch', '-q', branch);
+  const before = readPlan(dir).tasks[0];
+  const busy = cli('write-session', 'run', 'codex', '--continue', id, '--write', '--worktree', '--task', 't1', '--', 'x');
+  assert.equal(busy.status, 2);
+  assert.match(busy.stderr, /başka bir yerde checkout/);
+  assert.doesNotMatch(busy.stderr, /\[izleme\] kimlik/, 'çalışma kaydı açılmaz');
+  assert.deepEqual(readPlan(dir).tasks[0], before);
+});

@@ -109,5 +109,5 @@ test('komut satırı: --continue önceki çalışmanın oturumunda ve klasörün
 
   assert.match(cli('echo', 'run', 'claude', '--continue', id, '--', 'x').stderr, /farklı bir işçiye ait/);
   assert.match(cli('echo', 'run', 'codex', '--continue', 'olmayan-kimlik', '--', 'x').stderr, /Çalışma bulunamadı/);
-  assert.match(cli('echo', 'run', 'codex', '--continue', id, '--write', '--worktree', '--', 'x').stderr, /--continue ile --worktree birlikte/);
+  assert.match(cli('echo', 'run', 'codex', '--continue', id, '--write', '--worktree', '--', 'x').stderr, /worktree'de değildi/, 'G-8');
 });

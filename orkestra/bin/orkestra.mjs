@@ -12,7 +12,7 @@ import { addTask, initPlan, planPath, readPlan, readyTasks, setTask, updatePlan 
 import { createRun, listRuns, readRun } from '../src/runlog.mjs';
 import { buildProfiles, verdictStats, workerStats } from '../src/profile.mjs';
 import { collectStatus, loadContext } from '../src/status.mjs';
-import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
+import { createWorktree, finalizeWorktree, reopenWorktree } from '../src/worktree.mjs';
 
 // Değer almayan bayraklar; diğerleri sonraki argümanı "--" ile başlasa bile değer olarak alır ("--note '--force kullanma'").
 const BOOLEAN_FLAGS = new Set(['write', 'worktree', 'stream', 'json', 'probe']);
@@ -111,11 +111,14 @@ async function main() {
     // --continue <çalışma kimliği>: aynı işçinin önceki oturumunda, aynı proje klasöründe devam eder.
     let prev = null;
     if (typeof flags.continue === 'string') {
-      if (flags.worktree) throw new Error('--continue ile --worktree birlikte kullanılamaz (önceki çalışma kopyası silindi)');
       prev = readRun(flags.continue);
       if (prev.worker !== workerId) throw new Error(`${prev.id} farklı bir işçiye ait (${prev.worker}); devam için aynı işçiyi seç`);
       if (!prev.sessionId) throw new Error(`${prev.id} için kayıtlı oturum kimliği yok; devam edilemiyor`);
     }
+    // --continue + --worktree: oturum işçinin önceki dalında ve aynı geçici yolda sürer.
+    const prevBranch = prev?.worktree ? prev.worktree.name ?? prev.worktree.branch : null;
+    if (prev && flags.worktree && !prev.worktree) throw new Error(`${prev.id} worktree'de değildi; devamı --worktree olmadan ana klasörde yap`);
+    if (prev && flags.worktree && !prevBranch) throw new Error(`${prev.id} için dal adı kayıtlı değil; --worktree ile devam edilemiyor`);
     // Yazma, yanlış klasörde dosya değiştirmemek için yalnızca açıkça verilen (ya da devam edilen) proje klasöründe yapılır.
     if (write && typeof flags.dir !== 'string' && !prev) throw new Error('--write için --dir ile proje klasörünü açıkça ver');
     if (flags.worktree && !write) throw new Error('--worktree yalnızca --write ile kullanılır (salt okunur işçi zaten bir şey değiştirmez)');
@@ -125,7 +128,7 @@ async function main() {
     const taskId = typeof flags.task === 'string' ? flags.task : null;
     if (taskId && !readPlan(projectDir).tasks.some((t) => t.id === taskId)) throw new Error(`bilinmeyen görev: ${taskId}`);
     // --worktree: işçi ana klasörde değil, kendi dalındaki ayrı bir kopyada çalışır; paralel işçiler birbirini ezmez.
-    const wt = flags.worktree ? createWorktree(projectDir, worker.id) : null;
+    const wt = !flags.worktree ? null : prev ? reopenWorktree(projectDir, prevBranch) : createWorktree(projectDir, worker.id);
     const choice = {
       model: typeof flags.model === 'string' ? flags.model : undefined,
       effort: typeof flags.effort === 'string' ? flags.effort : undefined,
@@ -162,7 +165,8 @@ async function main() {
     if (wt) {
       const fin = finalizeWorktree(wt, { message: `orkestra: ${worker.id} (${result.model ?? 'varsayılan'})\n\n${prompt}` });
       result.dir = projectDir;
-      result.worktree = { ...fin, base: wt.base, uncommittedInMain: wt.dirty };
+      // name: dal silinse de adı kalır; --continue --worktree aynı adla yeniden açar.
+      result.worktree = { ...fin, name: wt.branch, base: wt.base, uncommittedInMain: wt.dirty };
     }
     result.runId = log.id;
     log.finish(result);
@@ -181,7 +185,7 @@ async function main() {
         const w = result.worktree;
         console.error(w.commit
           ? `[worktree] dal: ${w.branch} · commit: ${w.commit.slice(0, 7)} · dosyalar: ${w.files.join(', ')}\n[worktree] birleştirmek için: git -C "${projectDir}" merge --no-ff ${w.branch}`
-          : '[worktree] işçi hiçbir dosyayı değiştirmedi; dal silindi');
+          : w.branch ? `[worktree] işçi hiçbir dosyayı değiştirmedi; dal korundu: ${w.branch}` : '[worktree] işçi hiçbir dosyayı değiştirmedi; dal silindi');
         if (w.uncommittedInMain) console.error('[worktree] uyarı: ana klasördeki commit edilmemiş değişiklikler işçinin kopyasına dahil değildi');
       }
     }

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runWorker } from '../src/runner.mjs';
 import { buildWorkers } from '../src/workers.mjs';
-import { createWorktree, finalizeWorktree } from '../src/worktree.mjs';
+import { createWorktree, finalizeWorktree, reopenWorktree } from '../src/worktree.mjs';
 import { CATALOG, fakeResolve } from './helpers.mjs';
 
 const workers = buildWorkers({ catalog: CATALOG });
@@ -82,6 +82,64 @@ test('worktree: ana klasördeki commit edilmemiş değişiklikler bildirilir', (
   } finally {
     finalizeWorktree(wt, { message: 'x' }); // test başarısız olsa da kopya temizlenir
   }
+});
+
+// --continue + --worktree: işçinin dalı, oturumunun bağlı olduğu aynı yolda yeniden açılır.
+test('worktree devamı: dal aynı yolda yeniden açılır, yeni değişiklik aynı dala ikinci commit olur (G-1)', () => {
+  const repo = makeRepo();
+  const first = createWorktree(repo, 'claude');
+  writeFileSync(join(first.path, 'a.txt'), 'ilk\n');
+  const fin1 = finalizeWorktree(first, { message: 'orkestra: claude' });
+
+  const wt = reopenWorktree(repo, first.branch);
+  assert.equal(wt.path, first.path, 'oturum klasöre bağlı: aynı yol');
+  assert.equal(wt.branch, first.branch);
+  assert.equal(wt.base, fin1.commit, 'taban dalın ucu');
+  assert.equal(readFileSync(join(wt.path, 'a.txt'), 'utf8').replace(/\r\n/g, '\n'), 'ilk\n', 'kopya dalın içeriğini taşır');
+  writeFileSync(join(wt.path, 'b.txt'), 'devam\n');
+  const fin2 = finalizeWorktree(wt, { message: 'orkestra: claude (devam)' });
+  assert.equal(fin2.branch, first.branch);
+  assert.deepEqual(fin2.files, ['b.txt']);
+  assert.equal(git(repo, 'rev-parse', `${first.branch}^`), fin1.commit, 'yeni commit öncekinin üstüne');
+  assert.ok(!existsSync(wt.path), 'kopya silinir');
+  assert.ok(!existsSync(join(repo, 'b.txt')), 'ana klasöre dokunulmaz');
+});
+
+test('worktree devamı: değişiklik yoksa var olan dal silinmez (G-3)', () => {
+  const repo = makeRepo();
+  const first = createWorktree(repo, 'codex');
+  writeFileSync(join(first.path, 'a.txt'), 'ilk\n');
+  const fin1 = finalizeWorktree(first, { message: 'x' });
+  const fin2 = finalizeWorktree(reopenWorktree(repo, first.branch), { message: 'y' });
+  assert.equal(fin2.commit, null);
+  assert.equal(fin2.branch, first.branch, 'dal korunur ve bildirilir');
+  assert.equal(git(repo, 'rev-parse', first.branch), fin1.commit);
+});
+
+test('worktree devamı: silinmiş dal aynı adla güncel HEAD\'den yeniden açılır (G-4)', () => {
+  const repo = makeRepo();
+  const first = createWorktree(repo, 'codex');
+  finalizeWorktree(first, { message: 'x' }); // değişiklik yok → dal silindi
+  assert.ok(!branchExists(repo, first.branch));
+  const wt = reopenWorktree(repo, first.branch);
+  try {
+    assert.equal(wt.path, first.path);
+    assert.equal(wt.base, git(repo, 'rev-parse', 'HEAD'));
+    assert.ok(branchExists(repo, first.branch));
+  } finally {
+    finalizeWorktree(wt, { message: 'x' });
+  }
+  assert.ok(!branchExists(repo, first.branch), 'yeniden açılan dal boş kalırsa yine silinir');
+});
+
+test('worktree devamı: dal başka yerde checkout edilmişse anlaşılır hatayla reddedilir (G-5)', () => {
+  const repo = makeRepo();
+  const first = createWorktree(repo, 'codex');
+  writeFileSync(join(first.path, 'a.txt'), 'ilk\n');
+  finalizeWorktree(first, { message: 'x' });
+  git(repo, 'switch', '-q', first.branch);
+  assert.throws(() => reopenWorktree(repo, first.branch), /başka bir yerde checkout/);
+  assert.ok(!existsSync(first.path), 'kopya açık kalmaz');
 });
 
 test('paralel yazma: iki işçi aynı dosyaya aynı anda yazar, birbirini ezmez', async () => {
