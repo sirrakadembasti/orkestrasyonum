@@ -4,6 +4,8 @@ Bilgisayardaki AI CLI'larını işçi olarak yöneten orkestratör. Bağımlıl�
 
 **Beyin ve el:** Planlayan, iş dağıtan ve doğrulayan **beyin**, SKILL.md'yi okuyan AI ajanıdır (konuştuğun model). orkestra onun **eli**: işçileri tanıtır (`profile`), planı saklar (`plan`), görevleri işçilere verir (`run`), izler (`runs`, `watch`) ve oturumları sürdürür (`--continue`). Hangi işin kime gideceğine orkestra değil beyin karar verir.
 
+Orkestranın kendisini geliştirenler için: kurallar ve yapı [../CLAUDE.md](../CLAUDE.md), nerede kalındığı ve açık işler [../ACIK-ISLER.md](../ACIK-ISLER.md).
+
 ## Nasıl çağrılır
 Hiçbir skill klasörüne kurulmaz ve kendiliğinden devreye girmez. Herhangi bir projede, kullandığın AI ajanına (Claude Code, Codex, Copilot, agy, OpenCode…) şöyle yazman yeterli:
 
@@ -61,7 +63,7 @@ node bin/orkestra.mjs run opencode:minimax --model MiniMax-M3 --effort high -- "
 | İşçi | Varsayılan (okuma) | `--write` |
 |---|---|---|
 | claude | `--permission-mode plan` | `--permission-mode acceptEdits` |
-| codex | `-s read-only` | `-s workspace-write` (yalnızca proje klasörü) |
+| codex | `-c sandbox_mode="read-only"` | `-c sandbox_mode="workspace-write"` (yalnızca proje klasörü) |
 | copilot | `--deny-tool=write` | `--allow-tool=write` |
 | agy | `--mode plan` | — desteklenmiyor (etkileşimsiz modda komut izni beklerken boş dönüyor; `--write` reddedilir) |
 | kimi | `--plan` | `--yolo` (rutin komutları da çalıştırır) |
