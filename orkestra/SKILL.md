@@ -37,9 +37,12 @@ $O plan show --dir "<proje>" [--json]   # görevler, hazır olanlar, doğrulanac
 $O run <işçi> --dir "<proje>" --task <görev> … -- "<prompt>"   # çalışmayı plandaki göreve bağlar
 ```
 
-## Proje yürütme (beyin sensin)
-Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştirilmesini istediğinde **planlayan, iş dağıtan, izleyen ve doğrulayan sensin**; orkestra yalnızca kararlarını uygular. Hangi işin kime gideceğini projenin ihtiyacına göre sen belirlersin: hız, maliyet, kalite, işçinin yeteneği ve geçmiş başarısı.
-1. **Hedef ve proje yolu:** Kullanıcıdan al; belirsizse sor. Maliyet/hız/kalite önceliği belirsizse sor.
+## Proje yürütme (beyin sensin, spec driven)
+Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştirilmesini istediğinde **planlayan, iş dağıtan, izleyen ve doğrulayan sensin**; orkestra yalnızca kararlarını uygular.
+
+**Kod spec'ten, spec kullanıcının onayından gelir.** Proje üç belgeyle yürür: `docs/spec/requirements.md` → `docs/spec/design.md` → `docs/spec/tasks.md`. Her belge kullanıcıya gösterilir ve **açık onayı alınmadan bir sonraki aşamaya geçilmez**; spec onaylanmadan işçiye kod yazdırılmaz. Tek cümlelik hedef ("giriş yapılan bir not uygulaması") spec değildir: eksik olan her şeyi sen tahmin edersen ürün senin tahminin olur, kullanıcının istediği değil.
+
+1. **Proje yolu ve öncelik:** Kullanıcıdan al; belirsizse sor (maliyet/hız/kalite).
 2. **Git ve çalışma dalı:** İşler `main`'de değil, bir çalışma dalında yürür.
    - Proje git deposu değilse (`git -C P rev-parse --is-inside-work-tree` başarısız): kullanıcıya sorup `git init`, `.orkestra/` satırını `.gitignore`'a ekle ve mevcut dosyalarla ilk commit'i at. Dosyaları commit'e katacağın için onaysız yapma.
    - Depo var ama hiç commit yoksa: ilk commit'i yine kullanıcıya sorarak at (`--worktree` en az bir commit ister).
@@ -47,12 +50,28 @@ Kullanıcı bir uygulamanın orkestrasyonla oluşturulmasını ya da geliştiril
    - `main`/`master` üzerindeysen: önce commit edilmemiş değişiklik var mı bak (`git status --short`); varsa ne yapılacağını kullanıcıya sor. Sonra `orkestra-hedef/<hedefin-kısa-adı>` dalı aç ve ona geç (`git -C P switch -c …`). Böyle bir dal zaten varsa (kaldığın yerden devam) yenisini açma, ona geç.
    - Başka bir daldaysan o dal kullanıcının seçimidir; olduğu gibi kullan.
    - Tüm `--write` işleri ve worktree dallarının birleştirilmesi bu çalışma dalında yapılır. Çalışma dalını `main`'e birleştirmek yalnızca kullanıcının açık onayıyla olur.
-3. **Ekibi tanı:** `$O profile`. Yalnızca hazır işçileri kullan; `canWrite: hayır` olanlara yazma işi verme. **DOĞRULANAN** işin kalitesidir (beynin plandaki "bitti" kararları); **ÇIKIŞ** işçinin nasıl bittiğidir (zaman aşımı, bağlantı kopması): düşük çıkış oranı işin kötü olduğunu değil, işçinin yavaş ya da kararsız olduğunu gösterir. Ona daha uzun `--timeout` ver.
-4. **Planla:** Plan varsa `plan show` ile kaldığın yerden devam et; yoksa `plan init`. Hedefi küçük, doğrulanabilir görevlere böl (`plan add`); bağımlılıkları `--depends` ile, "bitti" ölçütünü `--note` ile yaz.
-5. **Dağıt:** `plan show`'daki **hazır** görevleri başlat: `run <işçi> --dir P --task tN …`. Birbirinden bağımsız hazır görevleri farklı CLI'lara paralel ver; aynı projeye paralel yazanlara `--write --worktree` kullan. Uzun işleri arka planda başlatıp `watch` ile izle.
-6. **Doğrula:** İşçi bitince görev **doğrulanacak** olur. Sonucu kendin kontrol et (dosyaları oku, testleri çalıştır, worktree dalının farkına bak). Uygunsa `plan set tN --status done --note "<kanıt>"`. Değilse aynı işçiye `--continue` ile düzeltme ver, başka işçiye ver ya da `failed`/`blocked` olarak notla. **Başarısız** görevin dalı varsa (`plan show`'da DAL sütunu) yeniden vermeden önce o dalı incele: işçi bağlantı kopması gibi bir nedenle düşmüş ama işi bitirmiş olabilir.
-7. **Tekrarla:** Tüm görevler bitene kadar 5–6. Sonunda kullanıcıya ne yapıldığını, hangi işçinin yaptığını, doğrulama kanıtını ve açık kalanları raporla.
-- Plan dosyası (`<proje>/.orkestra/plan.json`) tek doğruluk kaynağındır: bağlamın kaybolursa ya da yeni oturumda önce `plan show`.
+3. **Gereksinim (`requirements.md`) — kullanıcıyla görüşerek:**
+   - Sor, tahmin etme: kim kullanacak ve ne için; olmazsa olmaz özellikler, olsa iyi olanlar, kapsam dışı olanlar; görünüş ve his (örnek aldığı bir uygulama var mı); hangi cihazlarda; kullanıcı adı/şifre gibi kurallarda beklentisi. Seçenekli sorularla ilerle, bir seferde birkaç soru.
+   - Yaz: kullanıcı hikâyeleri ("… olarak … isterim, böylece …") ve her biri için **numaralı kabul ölçütleri** (`G-2.3: Kullanıcı adı kurala uymuyorsa alanın altında neyin yanlış olduğu yazar`). Ölçüt kullanıcının gözünden ve gözlemlenebilir olmalı ("hızlı olmalı" değil, "liste 1 sn içinde görünür"). Yanlış girdi, boş durum, bağlantı/sunucu hatası, uzun metin, Türkçe karakter gibi kenar durumlarını da ölçüt olarak yaz. Kapsam dışını açıkça yaz.
+   - Kullanıcıya göster; düzeltmelerini işle; **onay al**.
+4. **Tasarım (`design.md`):**
+   - Ekran akışları ve **her ekranın taslağı**: kullanıcının görebileceği biçimde (HTML taslak ya da görsel); sözlü tarif yetmez. Her ekranın boş, yükleniyor, hata ve dolu hâli; mobil görünüm. Görsel dil: renkler, yazı tipi, boşluklar. Ekrandaki metinler ve hata mesajlarının tam metni.
+   - Teknik tasarım: veri modeli, API/modül arayüzleri, hata durumları, teknik seçimler ve gerekçeleri. Her kararın hangi kabul ölçütüne hizmet ettiğini belirt.
+   - Kullanıcıya göster (taslakları açıp ekran görüntüsüyle ya da sayfa olarak); **onay al**.
+5. **Görevler (`tasks.md`) ve plan:**
+   - Görevleri **dikey dilimler** halinde böl: her görev bir kullanıcı hikâyesini uçtan uca bitirir ("kayıt olma", "notlarda arama"), modüllere göre değil ("store", "sunucu", "arayüz"). Her görev karşıladığı kabul ölçütlerinin kimliklerini ve ilgili spec bölümlerini yazar.
+   - `$O profile` ile ekibi tanı. Yalnızca hazır işçileri kullan; `canWrite: hayır` olanlara yazma işi verme. **DOĞRULANAN** işin kalitesidir (beynin plandaki "bitti" kararları); **ÇIKIŞ** işçinin nasıl bittiğidir (zaman aşımı, bağlantı kopması): düşük çıkış oranı işçinin yavaş ya da kararsız olduğunu gösterir, ona daha uzun `--timeout` ver. Arayüz ve kullanıcı deneyimi işi de kalite ister; işçiyi maliyetten önce yeteneğe göre seç.
+   - Plan varsa `plan show` ile kaldığın yerden devam et; yoksa `plan init`. Görevleri `plan add --note "G-2.1, G-2.3"` ile kabul ölçütlerine bağla; bağımlılıkları `--depends` ile yaz. `tasks.md`'yi kullanıcıya göster.
+6. **Uygula:** `plan show`'daki **hazır** görevleri başlat: `run <işçi> --dir P --task tN …`. Prompt'a görevi, karşılayacağı kabul ölçütlerinin **tam metnini**, okuması gereken spec dosyalarının yollarını ve dokunabileceği dosyaları yaz; her kabul ölçütü için önce test yazmasını iste. Birbirinden bağımsız görevleri farklı CLI'lara paralel ver; aynı projeye paralel yazanlara `--write --worktree` kullan. Uzun işleri arka planda başlatıp `watch` ile izle.
+7. **Doğrula — ölçüt ölçüt:** İşçi bitince görev **doğrulanacak** olur. İşçinin "testler geçti" raporu kanıt değildir.
+   - Dalı birleştirdikten sonra testleri **kendin** çalıştır: işçinin kopyasında başka görevlerin dosyaları yoktu, birleşince kırılabilir.
+   - Görevin her kabul ölçütünü tek tek kanıtla: otomatik test ve uygulamayı gerçekten çalıştırıp tarayıcıda/terminalde senaryo. Senaryoyu yalnızca kurallara uyan girdilerle değil, gerçek bir kullanıcının yazacağı girdilerle de dene: yanlış, boş, kısa, uzun, Türkçe karakterli, boşluklu.
+   - Ekranı onaylı taslakla karşılaştır; ekran görüntüsüne "çalışıyor mu" diye değil "taslaktaki gibi ve iyi görünüyor mu" diye bak. Görsel bozukluk da ölçüt ihlalidir.
+   - Uygunsa `plan set tN --status done --note "<ölçüt kimlikleri ve kanıt>"`. Değilse aynı işçiye `--continue` ile düzeltme ver, başka işçiye ver ya da `failed`/`blocked` olarak notla. **Başarısız** görevin dalı varsa (`plan show`'da DAL sütunu) yeniden vermeden önce o dalı incele: işçi bağlantı kopması gibi bir nedenle düşmüş ama işi bitirmiş olabilir.
+8. **Kabul:** Tüm görevler bitince kullanıcıya **kabul ölçütü ölçüt** rapor ver: hangisi nasıl kanıtlandı, hangi işçi yaptı, açık kalanlar. Uygulamayı kendisinin deneyebileceği şekilde çalıştır ve nasıl çalıştıracağını yaz. Kullanıcı kabul etmeden işi bitmiş sayma; çalışma dalını `main`'e birleştirmeyi ancak kabulünden sonra öner.
+- **Değişiklik isteği:** Önce ilgili spec'i güncelle ve kullanıcıya onaylat, sonra görev aç. Spec'te olmayan bir şeyi koda ekletme.
+- **Var olan proje:** Spec yoksa önce mevcut davranıştan spec çıkar (ne yapıyor, ne yapmıyor) ve kullanıcıyla eksikleri konuşarak onaylat; sonra değişikliğe geç.
+- Spec belgeleri projenin git'inde tutulur; plan dosyası (`<proje>/.orkestra/plan.json`) görev durumlarının tek doğruluk kaynağıdır. Bağlamın kaybolursa ya da yeni oturumda önce `docs/spec/` belgelerini oku, sonra `plan show`.
 - Dal birleştirme, push, silme gibi geri dönüşü zor adımları kullanıcıya sormadan yapma.
 
 ## Tek görev akışı

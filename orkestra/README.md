@@ -15,7 +15,12 @@ Bir uygulamayı baştan sona orkestrasyonla geliştirmek için:
 
 > `F:\projeler\orkestrasyonum\orkestra\SKILL.md` dosyasını oku ve uygula. Proje: `D:\kodlar\uygulamam`. Hedef: kullanıcı girişi olan bir not uygulaması. Önceliğim düşük maliyet.
 
-Ajan beyin olarak işçileri tanır, planı kurar, görevleri dağıtır, sonuçları doğrular ve planı günceller.
+Ajan beyin olarak **spec driven** ilerler; her aşamada senin onayını alır ve onaysız bir sonrakine geçmez:
+
+1. **Gereksinim** (`docs/spec/requirements.md`): seninle görüşür; kullanıcı hikâyelerini ve numaralı kabul ölçütlerini yazar.
+2. **Tasarım** (`docs/spec/design.md`): ekran taslaklarını sana gösterir; veri modeli, API ve hata mesajlarını yazar.
+3. **Görevler** (`docs/spec/tasks.md`): işi uçtan uca özelliklere böler, her görevi kabul ölçütlerine bağlar ve işçilere dağıtır.
+4. **Doğrulama ve kabul:** her kabul ölçütünü testle ve uygulamayı gerçekten çalıştırarak kanıtlar; sana ölçüt ölçüt rapor verir.
 
 İşler `main`'de değil, bir çalışma dalında yürür. Proje git deposu değilse ajan sana sorup `git init` yapar, `.orkestra/`'yı `.gitignore`'a ekler ve ilk commit'i atar. `main` üzerindeyse `orkestra-hedef/<hedef>` dalını açar; işçilerin yazdıkları ve worktree dalları bu dala birleşir. Çalışma dalı `main`'e yalnızca senin onayınla birleşir.
 
